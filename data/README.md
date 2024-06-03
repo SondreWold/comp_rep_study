@@ -10,5 +10,7 @@ download_scan.sh
 The two datasets are on a different format. The following will create a
 folder with all the base task splits for both datasets on a common format where the
 input and output language is delimited by a ";":
+
+
 `create_base_task_data.sh`
 
