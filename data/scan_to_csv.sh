@@ -4,4 +4,5 @@ input_file=$1
 output_file=$2
 
 sed -e "s/IN: //g" $input_file >> .tmp_scan.txt
-sed -e "s/ OUT: /\t/g" .tmp_scan.txt > $output_file
+sed -e "s/ OUT: /;/g" .tmp_scan.txt > $output_file
+rm .tmp_scan.txt
