@@ -21,7 +21,7 @@ class Lang:
                  word2index: Optional[dict] = None,
                  index2word: Optional[dict] = None) -> None:
         if index2word is None:
-            index2word = {0: "PAD", 1: "SOS", 2: "EOS"}
+            index2word = {PAD_TOKEN: "PAD", SOS_TOKEN: "SOS", EOS_TOKEN: "EOS"}
         if word2index is None:
             word2index = {}
         self.name = name
