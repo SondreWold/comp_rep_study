@@ -17,9 +17,12 @@ MAX_SAMPLE_LENGTH = 256
 
 
 class Lang:
-    def __init__(self, name: str,
-                 word2index: Optional[dict] = None,
-                 index2word: Optional[dict] = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        word2index: Optional[dict] = None,
+        index2word: Optional[dict] = None,
+    ) -> None:
         if index2word is None:
             index2word = {PAD_TOKEN: "PAD", SOS_TOKEN: "SOS", EOS_TOKEN: "EOS"}
         if word2index is None:
@@ -31,7 +34,7 @@ class Lang:
         self.n_words = 3  # Count PAD, SOS and EOS tokens
 
     def add_sentence(self, sentence: str) -> None:
-        for word in sentence.split(' '):
+        for word in sentence.split(" "):
             self.add_word(word)
 
     def add_word(self, word: str) -> None:
@@ -62,7 +65,7 @@ class SequenceDataset(Dataset):
 
         pairs = []
         for line in lines:
-            inl, outl = line.split(';')
+            inl, outl = line.split(";")
             inl = inl.strip()
             outl = outl.strip()
             pairs.append([inl, outl])
@@ -72,12 +75,16 @@ class SequenceDataset(Dataset):
         return len(self.pairs)
 
     def indexesFromSentence(self, lang: Lang, sentence: str) -> list[int]:
-        return [lang.word2index[word] for word in sentence.split(' ')]
+        return [lang.word2index[word] for word in sentence.split(" ")]
 
     def __getitem__(self, idx) -> DatasetItem:
         x, y = self.pairs[idx]
         input_tensor = self.indexesFromSentence(self.input_language, x) + [EOS_TOKEN]
-        output_tensor = [SOS_TOKEN] + self.indexesFromSentence(self.output_language, y) + [EOS_TOKEN]
+        output_tensor = (
+            [SOS_TOKEN]
+            + self.indexesFromSentence(self.output_language, y)
+            + [EOS_TOKEN]
+        )
         return torch.tensor(input_tensor), torch.tensor(output_tensor), x, y
 
 
@@ -96,10 +103,12 @@ class CollateFunctor:
         max_length = max(lengths)
         if max_length == 1:  # Some samples are only one token
             max_length += 1
-        subword_ids = torch.stack([
-            F.pad(sentence, (0, max_length - length), value=self.pad_id)
-            for length, sentence in zip(lengths, sentences)
-        ])
+        subword_ids = torch.stack(
+            [
+                F.pad(sentence, (0, max_length - length), value=self.pad_id)
+                for length, sentence in zip(lengths, sentences)
+            ]
+        )
         attention_mask = subword_ids == self.pad_id
         return subword_ids, attention_mask
 
