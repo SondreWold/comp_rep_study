@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "comp-rep-study"
+name = "comp-rep"
 version = "0.1.0"
 description = ""
 authors = ["Sondre Wold <sondrewold1@gmail.com>"]

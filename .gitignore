@@ -1,3 +1,6 @@
+# Locks
+*.lock
+
 # Data related files
 data/SCAN
 data/PCFGS
