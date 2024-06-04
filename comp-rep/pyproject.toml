@@ -11,6 +11,7 @@ numpy = "^1.26.4"
 torch = "^2.3.0"
 flake8 = "^7.0.0"
 pytest = "^8.2.1"
+pre-commit = "^3.7.1"
 
 
 [build-system]
