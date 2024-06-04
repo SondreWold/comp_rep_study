@@ -28,7 +28,7 @@ class Lang:
         self.word2count = defaultdict(int)
         self.word2index = word2index
         self.index2word = index2word
-        self.n_words = 3  # Count PAD, SOS and EOS
+        self.n_words = 3  # Count PAD, SOS and EOS tokens
 
     def add_sentence(self, sentence: str) -> None:
         for word in sentence.split(' '):
