@@ -7,6 +7,9 @@
     - Learns weight masks for SCAN, but do not try to isolate functions.
 - [Winning the Lottery with Continuous Sparsification](https://proceedings.neurips.cc/paper/2020/hash/83004190b1793d7aa15f8d0d49a13eba-Abstract.html)
     - Introduces the binary weight mask technique.
+- [Measuring Compositionality in Representation Learning](https://openreview.net/forum?id=HJz05o0qK7)
+    - Introduces the Tree Reconstruction Error that measures
+      compositionality in representations.
 
 ### Mechanistic Interpretability
 - [A Primer on the Inner Workings of Transformer-based Language Models](https://arxiv.org/abs/2405.00208)
