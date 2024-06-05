@@ -18,8 +18,8 @@
   weight masking.
 - Will we observe similar results if we train Transformer models *from
   scratch* on datasets that are highly compositional by design? SCAN and
-  PCFG SET contains a lot of similar variable manipulation patterns that
-  can be composed compositional computations.
+  PCFG SET contains some similar variable manipulation patterns that
+  can be composed into compositional structures.
 
 ## Core idea
 - Can we isolate circuits that solve specific functions when solving SCAN
