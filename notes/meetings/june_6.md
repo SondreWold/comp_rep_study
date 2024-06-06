@@ -52,3 +52,9 @@
   more general framework for evaluation.
     - Since we do not rely on attention heads, it could be very interesting
       to do all the experiments with an RNN too and compare.
+
+
+## Going forward:
+We agreed upon using the next couple of weeks to synthesize and read up on
+existing methods for finding subnetworks/circuits/masks/etc, and then take
+it from there.
