@@ -47,6 +47,16 @@ class Transformer(nn.Module):
         self.projection = nn.Linear(self.hidden_size, self.output_vocabulary_size)
         self.init_weights()
 
+    def forward(self, source, source_padding_mask, target, target_padding_mask):
+        source = self.input_embedding(source)
+        target = self.output_embedding(target)
+        source = source + self.positional_embedding(source)
+        target = target + self.positional_embedding(target)
+        memory = self.encoder(source, source_padding_mask)
+        output = self.decoder(target, target_padding_mask, memory, source_padding_mask)
+        output = self.projection(output)
+        return output
+
     def init_weights(self):
         initrange = 0.1
         self.input_embedding.weight.data.uniform_(-initrange, initrange)
