@@ -25,20 +25,30 @@
 - Can we isolate circuits that solve specific functions when solving SCAN
   and PCFG SET?
 - Within the same dataset, do circuits that approximate similar functions
-  relate to eachother? Is the circuit that can approximate the "remove
+  relate to each other? Is the circuit that can approximate the "remove
   first" operation in PCFG SET similar to the "remove second" operation? Do
   circuits for unary function transfer better to other unary functions
   compared to binary functions? etc...
 - Does a circuit that approximate a variable manipulation pattern in SCAN
   transfer to the same pattern in PCFG SET?  And vice versa?
 - Do the circuits compose according to how the data compose? Is the
-  function "repeat" a repetion of "copy"?
+  function "repeat" a repetition of "copy"?
 
-## Contributions
-- We study functions with respect to the manipulation pattern they
-  represent, *without any noise*, both within the same task and across
+## Contributions/directions
+- We study the transferability of functions with respect to the specific variable manipulation
+  pattern they perform, *without any noise*, both within the same task and across
   tasks.
-- We train our models from scratch, for better control of the results.
 - We perform an analysis on the compositionality of the identified circuits
   to see if there is a correlation between the representations of the model
   and the structure of the grammar used to generate the data.
+- As we train models from scratch, compared to relying on pre-trained
+  models, we study how model size influence circuit transferability
+    - (My intuition is that smaller models are forced to create
+      abstractions, compared to bigger models who can create input-output
+      paths for almost all possible combinations)
+- Similar to the "Break it Down" article, but in contrast to other related
+  works in mechanistic interpretability, we rely on a circuit discovery
+  method that is not dependent on the Transformer architecture, providing a
+  more general framework for evaluation.
+    - Since we do not rely on attention heads, it could be very interesting
+      to do all the experiments with an RNN too and compare.
