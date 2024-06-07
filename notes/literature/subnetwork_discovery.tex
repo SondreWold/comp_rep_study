@@ -35,12 +35,14 @@ hypertexnames=true]
 
 \begin{abstract}
 \noindent
-This document is an attempt at synthesizing existing approaches to identifying subnetworks in deep learning models, with a focus on use cases within NLP.
+Studies of the hidden representations of deep neural networks are commonplace in machine learning research. A long-standing problem within the field has been to determine whether or not models learn modular representations that are specialized. For example, if a model is trained on an arithmetic dataset, is there a subnetwork in the model that is responsible for addition? This document tries to synthesize existing methods for identifying such subnetworks under a shared vocabulary.
 \end{abstract}
 
 \section{What is a subnetwork?}
 
 \citet{csordas2020neural} uses the terms \textit{modules} and \textit{subnetwork} interchangeably to refer to subsets of a models' weights that are responsible for performing a specific target functionality, such as solving subtasks of a larger and more complex problem. The same functional definition is used in \citet{lepori2023break} but there under the name \textit{subnetwork}. For example, given a base model $M$ parametrized by $\theta$, a subnetwork $S$ is implemented as a binary mask $m$ over $\theta$ such that $S=M_{\theta \odot m}$, where $\odot$ is elementwise multiplication and $m$ is trained on samples that pertain to one functional aspect of a task, such as addition in an arithmetic dataset.
+
+\citet{watanabe2019interpreting} uses the same functional framework, but uses the term \textit{cluster} to refer to a set of feature vectors that are the most influental on the output of a model for a set of specific inputs. This term is also used by \citet{casper2022graphical}, who defines a cluster to be a subset of the network when viewed as a graph structure (with neurons being the node abstraction). These clusters are also analyzed with respect to their \textit{local specialization}: does certain clusters translate to functional abstractions?
 
 \section{Identification methods}
 \subsection{Masks}
@@ -78,16 +80,6 @@ This method is similar to the algorithm presented in \citet{frankle2018the}, whe
 
 \subsection{Clustering}
 \citet{watanabe2019interpreting, casper2022graphical}
-
-\section{Terminology}
-\begin{itemize}
-	\item Circuit
-	\item Module
-	\item Mask
-	\item Subnetwork
-	\item Space or subspace
-\end{itemize}
-
 
 \newpage
 \bibliography{references}
