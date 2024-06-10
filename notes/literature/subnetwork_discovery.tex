@@ -35,7 +35,7 @@ hypertexnames=true]
 
 \begin{abstract}
 \noindent
-Studies of the hidden representations of deep neural networks are commonplace in machine learning research. A long-standing problem within the field has been to determine whether or not models learn modular representations that are specialized. For example, if a model is trained on an arithmetic dataset, is there a subnetwork in the model that is responsible for addition? This document tries to synthesize existing methods for identifying such subnetworks under a shared vocabulary.
+Studies that dissect the hidden representations of deep neural networks are commonplace in machine learning research. A long-standing problem within the field has been to determine to what extent models learn representations that are modular and specialized. For example, if a model is trained on an arithmetic dataset, is there a part of the model that computes addition, and is this part  distinguishable from the part that computes subtraction? Recently, the field of mechanistic interpretability has become a popular approach for answering such questions. This is typically done by identifying so-called circuits, which are subnetworks that correspond to the individual operations involved in solving a task. This functional definition of modularity, however, is also found under other names and by other methods than those used in mechanistic interpretability. This document tries to synthesize existing methods for identifying such subnetworks under a shared vocabulary, with an emphasis on applications within NLP.
 \end{abstract}
 
 \section{What is a subnetwork?}
