@@ -26,6 +26,7 @@ hypertexnames=true]
 \DeclareMathOperator*{\argmax}{arg\,max}
 \DeclareMathOperator*{\argmin}{arg\,min}
 \DeclareMathOperator*{\mini}{min}
+\DeclareMathOperator*{\subnetwork}{\hat{\theta_i}}
 
 \title{Identifying Subnetworks}
 \author{Sondre Wold}
@@ -35,33 +36,38 @@ hypertexnames=true]
 
 \begin{abstract}
 \noindent
-Studies that dissect the hidden representations of deep neural networks are commonplace in machine learning research. A long-standing problem within the field has been to determine to what extent models learn representations that are modular and specialized. For example, if a model is trained on an arithmetic dataset, is there a part of the model that computes addition, and is this part  distinguishable from the part that computes subtraction? Recently, the field of mechanistic interpretability has become a popular approach for answering such questions. This is typically done by identifying so-called circuits, which are subnetworks that correspond to the individual operations involved in solving a task. This functional definition of modularity, however, is also found under other names and by other methods than those used in mechanistic interpretability. This document tries to synthesize existing methods for identifying such subnetworks under a shared vocabulary, with an emphasis on applications within NLP.
+Studies that dissect the hidden representations of deep neural networks are commonplace in machine learning research. A long-standing problem within the field has been to determine to what extent models learn representations that are modular and specialized. For example, if a model is trained on an arithmetic dataset, is there a part of the model that computes addition, and is this part  distinguishable from the part that computes subtraction? Recently, the field of mechanistic interpretability has become a popular approach for answering such questions. This is typically done by identifying so-called circuits, which are subnetworks that correspond to the individual operations involved in solving a task. This functional definition of modularity, however, is also found under other names and by other methods than those typically used in mechanistic interpretability. This document tries to synthesize existing methods for identifying such subnetworks under a shared vocabulary, with an emphasis on applications within NLP.
 \end{abstract}
 
 \section{What is a subnetwork?}
+The work surveyed in this article are all, in some way or another, concerned with the following question: Given a parameterized model $M_\theta$ and a target task $T$ that is composed of a set of $i$ distinguishable subtasks $ST_i$, is there a subnetwork in $M_\theta$, $\subnetwork \subset \theta$, that can solve $ST_i$ with a comparable performance to the overall model, so that $P(x | M_\theta) \approx P(x | M_{\subnetwork})$ for $x \sim ST_i$? In the literature there exists  multiple terms for describing $\hat{\theta_i}$ and multiple ways of separating it from $\theta$. In this section, we present the most common ways of describing $\subnetwork$.
 
-\citet{csordas2020neural} uses the terms \textit{modules} and \textit{subnetwork} interchangeably to refer to subsets of a models' weights that are responsible for performing a specific target functionality, such as solving subtasks of a larger and more complex problem. The same functional definition is used in \citet{lepori2023break} but there under the name \textit{subnetwork}. For example, given a base model $M$ parametrized by $\theta$, a subnetwork $S$ is implemented as a binary mask $m$ over $\theta$ such that $S=M_{\theta \odot m}$, where $\odot$ is elementwise multiplication and $m$ is trained on samples that pertain to one functional aspect of a task, such as addition in an arithmetic dataset.
+\citet{csordas2020neural} uses the terms \textit{module} and \textit{subnetwork} interchangeably to refer to $\subnetwork$, which they describe as a subset of a models' weights that is responsible for performing a specific target functionality. The same functional definition is used in \citet{lepori2023break} but there exclusively under the name \textit{subnetwork}. 
 
-\citet{watanabe2019interpreting} uses the same functional framework, but uses the term \textit{cluster} to refer to a set of feature vectors that are the most influental on the output of a model for a set of specific inputs. This term is also used by \citet{casper2022graphical}, who defines a cluster to be a subset of the network when viewed as a graph structure (with neurons being the node abstraction). These clusters are also analyzed with respect to their \textit{local specialization}: does certain clusters translate to functional abstractions?
+\citet{watanabe2019interpreting} uses the same functional definition of modularity, but uses the term \textit{cluster} to refer to a set of feature vectors that are the most influential on the output of a model for a set of specific inputs. This term is also used by \citet{casper2022graphical}, who defines a cluster to be a subset of the network when viewed as a computational graph (with neurons being the node abstraction). These clusters are analyzed with respect to their \textit{local specialization}, where goal of the analysis is to determine to what extent certain clusters translate to functional abstractions from the target task.
+
+In contrast to the functional definition, \citet{ansell-etal-2022-composable} uses the term \textit{subset} to refer to the parameters of $M$ that are the most influential on a finetuning task. This definition is closely related to works on effecient finetuning, such as adapters \citep{houlsby2019parameter}, where additional parameters are inserted into $M$. As these parameters are not part of the original model, these methods fall out of scope for this survey.
 
 \section{Identification methods}
+In this section we discuss existing methods for identifying $\subnetwork$ from $\theta$.
 \subsection{Masks}
 \subsubsection{Differentiable weight masks}
-\citet{csordas2020neural} proposes a method for training binary weight masks for all the weights of any NN. Their method first formulates a target task that corresponds to a specific function. This task is typically a subtask of a larger task. Next, they train a mask on this target task while keeping the original weights of the network frozen. The resulting mask reveals the module responsible for solving the functionality isolated in the target task.
+\citet{csordas2020neural} proposes a method for training binary weight masks over $\theta$. Their method requires a set of subtasks $ST_i$ that correspond to the functions required to solve $T$. The first step is to train $M_\theta$ on samples from $T$.  Next, they train a mask $m$ on samples from $ST_i$ while keeping $\theta$ frozen. The resulting mask reveals the parameters responsible for solving the functionality for the samples in $ST_i$, $\subnetwork$.
 
-The mask is initialized as learnable logits $l_i \in \mathbb{R}$, where $i \in [i, N]$ for $N$ weights that parameterize model $M$. $l_i$ is set to $0.9$ for each $i$ in order to have a high probability of keeping the weight. During training, $l_i$ is regularized such that the probability for weight $w_i$ not being masked out during inference is high if $w_i$ is necessary for solving the subtask. The regularization term $r$ is set as $r = \alpha \sum_i l_i$, where $\alpha$ is a hyperparameter that controls the strength of the regularization. The mask training procedure is based on sampling. For each $l_i$, a sample $s_i \in [0, 1]$ is drawn from the mask as follows:
+The mask $m$ is initialized as a set of learnable logits $l_i \in \mathbb{R}$, where $i \in [i, N]$ for $N$ weights in $\theta$. $l_i$ is initially set to $0.9$ for each $i$ in order to have a high probability of keeping weights. During training, $l_i$ is regularized such that the probability for weight $\theta_i$ not being masked out during inference is high if $\theta_i$ is necessary for solving $ST_i$. The regularization term $r$ is set as $r = \alpha \sum_i l_i$, where $\alpha$ is a hyperparameter that controls the strength of the regularization. The mask training procedure is based on sampling. For each $l_i$, a sample $s_i \in [0, 1]$ is drawn from the mask as follows:
 
 \begin{equation}
 s_i = \sigma((l_i - \log(\log U_1 / \log U_2) / \tau),
 \end{equation}
-with $U_1, U_2 \sim U(0,1)$, and where $\tau$ is a hyperparameter and $\sigma$ is the sigmoid function. $s_i$ is then gated to become the final binary mask, $b_i$. This is done with a straight-through estimator, which allows for estimating the gradient of threshold functions---like the one needed here to turn the continuous $s_i$ into the discrete $b_i$.\footnote{There was a lot of details here that I did not quite understand, but I think this should explain the gist of it at least} The authors sample 4-8 binary masks per batch and apply it to different parts of the batch. After training, the mask is applied to $M$ through elementwise multiplication of the mask with the original weights $w_i \odot b_i$. 
 
-\citet{lepori2023break} uses almost the exact same approach as \citet{csordas2020neural} but with a different, and much simpler, masking technique. They use a pruning technique called \textit{continuous sparsification} \citep{savarese2020winning}, which they claim is both deterministic and better at finding sparser subnetworks than the one used in \citet{csordas2020neural}. This method uses $l_0$ regularization, where the training incentivize a weight mask to have as many zero-elements as possible. Given a model $M$ parameterized by $\theta$ that is trained to solve a task, you first initialize the mask $m$ as $\hat{\theta} = \theta$. You then minimize the following objective function on samples that target the functionality you wish to discover a subnetwork for: \todo{This part is not accurate and needs to be revised substantially.}
+with $U_1, U_2 \sim U(0,1)$, and where $\tau$ is a hyperparameter and $\sigma$ is the sigmoid function. $s_i$ is then gated to become the final binary mask, $b_i$. This is done with a straight-through estimator, which allows for estimating the gradient of threshold functions---like the one needed here to turn the continuous $s_i$ into the discrete $b_i$.\footnote{There was a lot of details here that I did not quite understand, but I think this should explain the gist of it at least} The authors sample 4-8 binary masks per batch and apply it to different parts of the batch. After training, the mask is applied to $M_\theta$ through elementwise multiplication of the mask with the original weights: $\theta_i \odot b_i$, revealing $\subnetwork$ as those parameters that are not set to zero from this multiplication.
+
+\citet{lepori2023break} uses almost the exact same approach as \citet{csordas2020neural} but with a different and simpler masking technique. Their approach relies on a pruning technique called \textit{continuous sparsification} \citep{savarese2020winning}, which the authors claim is both deterministic and better at finding sparser subnetworks than the one used in \citet{csordas2020neural}. This method uses $l_0$ regularization, where the training incentivize a weight mask to have as many zero-elements as possible. Given a model $M_\theta$ that is trained to solve $T$, the first step is to initialize the mask $m$ as a set of parameters with the same dimensionality as $\theta$. The next step is to train $m$ on samples from $ST_i$ while keeping $\theta$ frozen. This mask training optimizes the following objective function: 
 
 \begin{equation}
-\mini_{\hat{\theta}\in \mathbb{R}^d} L\left(M_\theta(x)\right) + \lambda * ||\sigma(\beta * s_i)||_1,
+\mini_{m \in \mathbb{R}^d} L (M_{\theta_i \odot m_i}(x)) + \lambda * ||\sigma(\beta * m_i)||_1,
 \end{equation}
-, where $L$ is the cross entropy of model $M$'s predictions for input sample $x$, parameterized by weights $\theta$, and $\lambda$ is a hyperparameter that controls the balance between the loss and the number of zero-elements in $\theta$. After mask training, the mask is made binary and applied elementwise with the original network through a heaviside function, substituting $\sigma(\beta * s_i)$ with:
+where $L$ is the cross entropy, $x \sim ST_i$, and $\lambda$ and $\beta$ are hyperparameters that effectively control the balance between the loss and the number of zero-elements in $\theta$. After mask training, the mask is made binary and applied elementwise with the original network through a heaviside function, substituting $\sigma(\beta * m_i)$ with:
 
 \begin{equation}
     H(S)=
@@ -70,16 +76,17 @@ with $U_1, U_2 \sim U(0,1)$, and where $\tau$ is a hyperparameter and $\sigma$ i
       0,  s < 0 \\
       1,  s > 0
     \end{array}
-    \right\}.
+    \right\},
 \end{equation}
+which gives us the final subnetwork responsible for computing $ST_i$: $\subnetwork = M_{\theta_i \odot H(m_i)}$
 
 \subsubsection{Lottery Ticket Sparse Fine-Tuning}
-Another way of identifying masks is the Lottery Ticket Sparse Fine-Tuning approach proposed by \citet{ansell-etal-2022-composable}. After finetuning a pretrained network on a target task, they identify the subset of parameters that changed the most during this training phase. Given a pretrained model $M$ parameterized by $\theta^0$, finetuning $M$ on a target task yields the parameters $\theta^1$. Parameters are then ranked according to their greatest absolute difference: $|\theta^1_i - \theta^0_i|$. A binary mask is then constructed by selecting the top $K$ parameters and setting all weights in $M$ that correspond to these to 1 and the rest to 0. 
-
-This method is similar to the algorithm presented in \citet{frankle2018the}, where they identify subnetworks that are initialized in a way that makes them able to achieve roughly the same task accuracy as the overall network, often at 10\% of the size (The Lottery Ticket Hypothesis).
+Another way of identifying masks is the Lottery Ticket Sparse Fine-Tuning approach proposed by \citet{ansell-etal-2022-composable}. After finetuning a pretrained network on a target task, they identify the subset of parameters that changed the most during this training phase. Given a pretrained model $M$ parameterized by $\theta^0$, finetuning $M$ on a target task yields the parameters $\theta^1$. Parameters are then ranked according to their greatest absolute difference: $|\theta^1_i - \theta^0_i|$. A binary mask is then constructed by selecting the top $K$ parameters and setting all weights in $M$ that correspond to these to 1 and the rest to 0, resulting in $\subnetwork$. A similar approach is also used in \citet{frankle2018the}.
 
 \subsection{Clustering}
 \citet{watanabe2019interpreting, casper2022graphical}
+
+\section{Subnetwork composition}
 
 \newpage
 \bibliography{references}
