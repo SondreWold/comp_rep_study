@@ -53,6 +53,8 @@ This section presents common ways of describing $\subnetwork$.
 \citet{watanabe2019interpreting} uses the same functional definition of modularity, but uses the term \textit{cluster} to refer to a set of feature vectors that are the most influential on the output of a model for a set of specific inputs. This term is also used by \citet{casper2022graphical}, who defines a cluster to be a subset of the network when viewed as a computational graph (with neurons being the node abstraction). These clusters are analyzed with respect to their \textit{local specialization}, where goal of the analysis is to determine to what extent certain clusters translate to functional abstractions from the target task.
 \paragraph{Subset}
 In contrast to the functional definition, \citet{ansell-etal-2022-composable} uses the term \textit{subset} to refer to the parameters of $M$ that are the most influential on a finetuning task. This definition is closely related to works on efficient finetuning, such as adapters \citep{houlsby2019parameter}, where additional parameters are inserted into $M$. As these parameters are not part of the original model, these methods fall out of scope for this survey.
+\paragraph{Circuits}
+The term \textit{circuit} is the standard in the field of mechanistic interpretability and is commonly described as a subset of of a network when viewed as a computational graph \citep{conmy2023towards, nanda2023progress, wang2023interpretability}. As most works in mechanistic interpretability focuses on the Transformer, this graph is a DAG, and a circuit will consequently be a path along the residual stream of the model. The nodes of the graph typically represent entire attention heads and individual nodes from the intermediate MLPs, i.e model components.
 
 \section{Identification methods}
 In this section we discuss existing methods for identifying $\subnetwork$ from $\theta$.
@@ -91,9 +93,9 @@ Another way of identifying masks is the Lottery Ticket Sparse Fine-Tuning approa
 
 \subsection{Clustering}
 \citet{watanabe2019interpreting, casper2022graphical}
-
+\subsection{Circuits}
+\citep{conmy2023towards, nanda2023progress, wang2023interpretability}
 \section{Subnetwork composition}
-
 \newpage
 \bibliography{references}
 
