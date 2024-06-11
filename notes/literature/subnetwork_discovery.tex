@@ -16,6 +16,7 @@
 
 \usepackage[
 colorlinks,
+linkcolor=blue,
 citecolor=blue,
 urlcolor=blue,
 bookmarks=false,
@@ -36,29 +37,32 @@ hypertexnames=true]
 
 \begin{abstract}
 \noindent
-Studies that dissect the hidden representations of deep neural networks are commonplace in machine learning research. A long-standing problem within the field has been to determine to what extent these representations are modular and specialized. For example, if a model is trained on an arithmetic dataset, is there a part of the model that computes addition, and is this part  distinguishable from the part that computes subtraction? Recently, the field of mechanistic interpretability has become a popular approach for answering such questions. This is typically done by identifying so-called circuits, which are subnetworks that correspond to the individual operations involved in solving a task. This functional definition of modularity, however, is also found under other names and by other methods than those typically used in mechanistic interpretability. This document tries to synthesize existing methods for identifying such subnetworks under a shared vocabulary, with an emphasis on applications within NLP.
+Studies that dissect the hidden representations of deep neural networks are commonplace in machine learning research. A long-standing problem within the field has been to determine to what extent these representations are modular and specialized. For example, if a model is trained on an arithmetic dataset, is there a part of the model that computes addition, and is this part  distinguishable from the part that computes subtraction? Recently, the field of mechanistic interpretability has become a popular approach for answering such questions. This is typically done by identifying so-called circuits, which are subnetworks that correspond to the individual operations involved in solving a task. This functional definition of modularity, however, is also found under other names and by other methods than those typically used in mechanistic interpretability. This work attempts to synthesize existing methods for identifying such subnetworks under a shared vocabulary, with an emphasis on applications within NLP.
 \end{abstract}
 
 \section{Introduction}
 
-The work surveyed in this article are all, in some way or another, concerned with the following question: does deep learning models learn solutions to problems that are modular and specialized? And if so, can we find evidence of this if we inspect the latent space? This is especially relevant for tasks where there exists a compositional solution that follows from the application and combination of a set of individual functions or smaller units of computation, such as in different types of reasoning, multi-hop question answering and code verification. This question can also be formulated more formally: Given a parameterized model $M_\theta$ and a target task $T$ that is composed of a set of $i$ distinguishable subtasks $ST_i$, is there a subnetwork in $M_\theta$, $\subnetwork \subset \theta$, that can solve $ST_i$ with a comparable performance to the overall model, so that $P(x | M_\theta) \approx P(x | M_{\subnetwork})$ for $x \sim ST_i$? 
+The work surveyed in this article are all, in some way or another, concerned with the following question: do deep learning models learn solutions to problems that are modular and specialized? And if so, can we find evidence of this if we inspect the latent space? This is especially relevant for tasks where there exists a compositional solution that follows from the application and combination of a set of individual functions or smaller units of computation, such as in different types of reasoning, multi-hop question answering and code verification. This question can also be formulated more formally: Given a model $M$ parameterized by $\theta \in \mathbb{R}^d$ and a target task $T$ that is composed of a set of $i$ distinguishable subtasks $ST_i$, is there a set of parameters $\subnetwork \subset \theta$, that can solve $ST_i$ with a comparable performance to the overall model, so that $P(x | M_\theta) \approx P(x | M_{\subnetwork})$ for $x \sim ST_i$? 
 
-In the literature there exists  multiple terms for describing $\subnetwork$ and multiple ways of separating it from $\theta$. In the following sections we will try to synthesize these terms and methodologies using a notation that relates back to this question.
+This question is closely related to the Lottery Ticket Hypothesis \citep{frankle2018the}, which states that for a randomly initialized network there exists a subnetwork that is initialized such that it matches the performance of the overall network when trained for the same number of iterations. In this work, however, we are not interested in the cases where $\subnetwork$ is a winning ticket with respect to the whole task, but the cases where it is clear that $\subnetwork$ is responsible for computing one functional aspect of a task that involves multiple functions.
 
-\section{We have many names for the things we love}
+Because this question is central to different research directions within machine learning there exists many descriptions of $\subnetwork$ that are similar. Each of these directions also have their own methods for identifying and separating $\subnetwork$ from $\theta$. In this work, we try to systematize and synthesize these descriptions and methods under a common notation and framework.
+
+
+\section{Descriptions}
 This section presents common ways of describing $\subnetwork$.
 \paragraph{Subnetwork}
-\citet{csordas2020neural} uses the terms \textit{module} and \textit{subnetwork} interchangeably to refer to $\subnetwork$. A subnetwork is defined as a subset of $\theta$ that is responsible for performing a specific function within an overall task. The same functional definition is used in \citet{lepori2023break} but there exclusively under the name \textit{subnetwork}. 
+\citet{csordas2020neural} uses the terms \textit{module} and \textit{subnetwork} interchangeably to refer to $\subnetwork$. Here, a subnetwork is defined as a subset of $\theta$ that is responsible for performing a specific function within an overall task. The same functional definition is used in \citet{lepori2023break} but there exclusively under the name subnetwork. This description of a subnetwork is related to the one used in works on pruning of deep neural networks. For example, \citet{savarese2020winning} defines a subnetwork as given by a binary \textit{mask} $m \in \{0, 1\}^d$, where $\theta_i$ is kept if $m_i = 1$ and removed otherwise. This means that while $M_\theta$ has $d$ parameters, $M_{\subnetwork}$ has effectively $||m||_1$ parameters. This method for separating $\subnetwork$ from $\theta$ is used in multiple works that try to isolate functional subnetworks. \cref{section:masking} describes existing methods for finding $m$ under this description.
 \paragraph{Cluster}
-\citet{watanabe2019interpreting} uses the same functional definition of modularity, but uses the term \textit{cluster} to refer to a set of feature vectors that are the most influential on the output of a model for a set of specific inputs. This term is also used by \citet{casper2022graphical}, who defines a cluster to be a subset of the network when viewed as a computational graph (with neurons being the node abstraction). These clusters are analyzed with respect to their \textit{local specialization}, where goal of the analysis is to determine to what extent certain clusters translate to functional abstractions from the target task.
+\citet{watanabe2019interpreting} uses the same functional definition of modularity, but uses the term \textit{cluster} to refer to a set of feature vectors that are the most influential on the output of a model for a set of specific inputs. This term is also used by \citet{casper2022graphical}, who defines a cluster to be a subset of the network when viewed as a computational graph (with neurons being the node abstraction). These clusters are analyzed with respect to their \textit{local specialization}, where the goal of the analysis is to determine to what extent certain clusters translate to functional abstractions from the target task.
 \paragraph{Subset}
-In contrast to the functional definition, \citet{ansell-etal-2022-composable} uses the term \textit{subset} to refer to the parameters of $M$ that are the most influential on a finetuning task. This definition is closely related to works on efficient finetuning, such as adapters \citep{houlsby2019parameter}, where additional parameters are inserted into $M$. As these parameters are not part of the original model, these methods fall out of scope for this survey.
-\paragraph{Circuits}
-The term \textit{circuit} is the standard in the field of mechanistic interpretability and is commonly described as a subset of of a network when viewed as a computational graph \citep{conmy2023towards, nanda2023progress, wang2023interpretability}. As most works in mechanistic interpretability focuses on the Transformer, this graph is a DAG, and a circuit will consequently be a path along the residual stream of the model. The nodes of the graph typically represent entire attention heads and individual nodes from the intermediate MLPs, i.e model components.
+In contrast to the functional definition, \citet{ansell-etal-2022-composable} uses the term \textit{subset} to refer to the parameters of $M$ that are the most influential on a general finetuning task--without focusing on the individual functions that this task might be composed of. This definition is closely related to works on efficient finetuning, such as adapters \citep{houlsby2019parameter}, where additional parameters are inserted into $M$. As these parameters are not part of the original model, these methods fall out of scope for this survey.
+\paragraph{Circuit}
+The term \textit{circuit} is the standard in the field of mechanistic interpretability and is commonly described as a subset of of a network when viewed as a computational graph \citep{conmy2023towards, nanda2023progress, wang2023interpretability}. Most works in mechanistic interpretability focuses on the Transformer, where circuit is a path along the edges of the graph that corresponds to the residual stream of the model. The nodes of the graph typically represent attention heads or nodes from MLPs, i.e model components, but could also represent more fine-grained elements.
 
 \section{Identification methods}
 In this section we discuss existing methods for identifying $\subnetwork$ from $\theta$.
-\subsection{Masks}
+\subsection{Masks}\label{section:masking}
 \subsubsection{Differentiable weight masks}
 \citet{csordas2020neural} proposes a method for training binary weight masks over $\theta$. Their method requires a set of subtasks $ST_i$ that correspond to the functions required to solve $T$. The first step is to train $M_\theta$ on samples from $T$.  Next, they train a mask $m$ on samples from $ST_i$ while keeping $\theta$ frozen. The resulting mask reveals the parameters $\subnetwork_i$ responsible for solving the functionality for the samples in $ST_i$
 
@@ -70,12 +74,12 @@ s_i = \sigma((l_i - \log(\log U_1 / \log U_2) / \tau),
 
 with $U_1, U_2 \sim U(0,1)$, and where $\tau$ is a hyperparameter and $\sigma$ is the sigmoid function. $s_i$ is then gated to become the final binary mask, $b_i$. This is done with a straight-through estimator, which allows for estimating the gradient of threshold functions---like the one needed here to turn the continuous $s_i$ into the discrete $b_i$.\footnote{There was a lot of details here that I did not quite understand, but I think this should explain the gist of it at least} The authors sample 4-8 binary masks per batch and apply it to different parts of the batch. After training, the mask is applied to $M_\theta$ through elementwise multiplication of the mask with the original weights: $\theta_i \odot b_i$, revealing $\subnetwork$ as those parameters that are not set to zero from this multiplication.
 
-\citet{lepori2023break} uses almost the exact same approach as \citet{csordas2020neural} but with a different and simpler masking technique. Their approach relies on a pruning technique called \textit{continuous sparsification} \citep{savarese2020winning}, which the authors claim is both deterministic and better at finding sparser subnetworks than the one used in \citet{csordas2020neural}. This method uses $l_0$ regularization, where the training incentivize a weight mask to have as many zero-elements as possible. Given a model $M_\theta$ that is trained to solve $T$, the first step is to initialize the mask $m$ as a set of parameters with the same dimensionality as $\theta$. The next step is to train $m$ on samples from $ST_i$ while keeping $\theta$ frozen. This mask training optimizes the following objective function: 
+\citet{lepori2023break} uses almost the exact same approach as \citet{csordas2020neural} but with a different and simpler masking technique. Their approach relies on a pruning technique called \textit{continuous sparsification} \citep{savarese2020winning}, which the authors claim is both deterministic and better at finding sparser subnetworks than the one used in \citet{csordas2020neural}. This method uses $l_0$ regularization \citep{louizos2018learning} to find sparse weight masks by maximising the number zero-elements in the masks. Given a model $M_\theta$ that is trained to solve $T$, the first step is to initialize the mask $m$ as a set of parameters with the same dimensionality as $\theta$. The next step is to train mask $m_i$ on samples from $ST_i$ while keeping $\theta$ frozen, optimizing for the following function:
 
 \begin{equation}
-\mini_{m \in \mathbb{R}^d} L (M_{\theta_i \odot m_i}(x)) + \lambda * ||\sigma(\beta * m_i)||_1,
+\mini_{\theta \in \mathbb {R}^d, m \in \mathbb{R}^d} L (M_{\theta \odot m}(x)) + \lambda * ||\sigma(\beta * m)||_1,
 \end{equation}
-where $L$ is the cross entropy, $x \sim ST_i$, and $\lambda$ and $\beta$ are hyperparameters that effectively control the balance between the loss and the number of zero-elements in $\theta$. After mask training, the mask is made binary and applied elementwise with the original network through a heaviside function, substituting $\sigma(\beta * m_i)$ with:
+where $L$ is the cross entropy, $x \sim ST_i$, $\sigma$ is the sigmoid function applied elementwise, and $\lambda$ is hyperparameter that effectively controls the balance between the loss and the number of zero-elements in $m$. $\beta$ is a parameter that makes it possible to approximate a threshold function, like the straight-through gradient estimator used in \citet{csordas2020neural}, deterministically. When $\lim_{\beta\to\infty}$, $\sigma(\beta * m)$ approximates the heaviside function:
 
 \begin{equation}
     H(S)=
@@ -86,7 +90,7 @@ where $L$ is the cross entropy, $x \sim ST_i$, and $\lambda$ and $\beta$ are hyp
     \end{array}
     \right\},
 \end{equation}
-which gives us the final subnetwork responsible for computing $ST_i$: $\subnetwork_i = M_{\theta_i \odot H(m_i)}$
+while for $\beta=1$ we have $\sigma(\beta * m) = \sigma(m)$. $\beta$ is increased linearly during training. During inference, the mask is made binary and applied elementwise with the original network by substituting $\sigma(\beta * m_i)$ with $H(m)$. This can also be used to locate the subnetwork responsible for computing $ST_i$: $\subnetwork_i = M_{\theta \odot H(m_i)}$
 
 \subsubsection{Lottery Ticket Sparse Fine-Tuning}
 Another way of identifying masks is the Lottery Ticket Sparse Fine-Tuning approach proposed by \citet{ansell-etal-2022-composable}. After finetuning a pretrained network on a target task, they identify the subset of parameters that changed the most during this training phase. Given a pretrained model $M$ parameterized by $\theta^0$, finetuning $M$ on a target task yields the parameters $\theta^1$. Parameters are then ranked according to their greatest absolute difference: $|\theta^1_i - \theta^0_i|$. A binary mask is then constructed by selecting the top $K$ parameters and setting all elements in $\theta_{i \in K}$ to 1 and $\theta_{i \notin K}$ to 0, which gives $\subnetwork$. A similar approach is also used in \citet{frankle2018the}.
@@ -95,7 +99,7 @@ Another way of identifying masks is the Lottery Ticket Sparse Fine-Tuning approa
 \citet{watanabe2019interpreting, casper2022graphical}
 \subsection{Circuits}
 \citep{conmy2023towards, nanda2023progress, wang2023interpretability}
-\section{Subnetwork composition}
+\section{Applications}
 \newpage
 \bibliography{references}
 
