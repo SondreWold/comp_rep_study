@@ -17,6 +17,7 @@
 - [Convergent Learning: Do different neural networks learn the same representations?](http://proceedings.mlr.press/v44/li15convergent.html)
 - [Towards Automated Circuit Discovery for Mechanistic Interpretability](https://proceedings.neurips.cc/paper_files/paper/2023/hash/34e1dbe95d34d7ebaf99b9bcaeb5b2be-Abstract-Conference.html)
 - [Circuit Component Reuse Across Tasks in Transformer Language Models](https://openreview.net/forum?id=fpoAYV6Wsk)
+- [Interpretability in the Wild: a Circuit for Indirect Object Identification in GPT-2 Small](https://openreview.net/forum?id=NpsVSN6o4ul)
 
 ### Compositionality
 - [Generalization without systematicity: On the compositional skills of sequence-to-sequence recurrent networks (SCAN paper)](https://proceedings.mlr.press/v80/lake18a.html)
