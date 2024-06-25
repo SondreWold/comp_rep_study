@@ -18,3 +18,9 @@ Who: Robert, Philipp and Sondre
         - Indicie based overlap
         - Layer by layer
         - Isotropy
+- A potential problem with comparing subnetworks is that they typically
+  depend on hyperparameters that control the sparsity, making it difficult
+  to compare methods while controlling for this bias.
+
+## Misc.
+- Should aim for weekly meetings
