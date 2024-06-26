@@ -1,11 +1,8 @@
+import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy
-import math
-import random
-import logging
-from pprint import pprint
 
 
 class Transformer(nn.Module):
@@ -25,11 +22,6 @@ class Transformer(nn.Module):
         self.hidden_size = hidden_size
         self.num_heads = hidden_size // 64
         self.dropout = dropout
-        self.mask_mode = mask_mode
-        if self.mask_mode:
-            self.ticket = False  # Apply the binary masks
-            self.initial_mask_value = 0.01
-            self.temperature = 200
 
         self.input_embedding = nn.Embedding(
             self.input_vocabulary_size, self.hidden_size
