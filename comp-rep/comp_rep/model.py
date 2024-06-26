@@ -20,7 +20,7 @@ class Transformer(nn.Module):
         self.output_vocabulary_size = output_vocabulary_size
         self.num_transformer_layers = num_transformer_layers
         self.hidden_size = hidden_size
-        self.num_heads = hidden_size // 64
+        self.num_heads = hidden_size // 64  # Just to make it simple
         self.dropout = dropout
 
         self.input_embedding = nn.Embedding(
