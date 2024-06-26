@@ -13,14 +13,13 @@ class Transformer(nn.Module):
         num_transformer_layers: int,
         hidden_size: int,
         dropout: float,
-        mask_mode: bool,
     ):
         super().__init__()
         self.input_vocabulary_size = input_vocabulary_size
         self.output_vocabulary_size = output_vocabulary_size
         self.num_transformer_layers = num_transformer_layers
         self.hidden_size = hidden_size
-        self.num_heads = hidden_size // 64  # Just to make it simple
+        self.num_heads = hidden_size // 64
         self.dropout = dropout
 
         self.input_embedding = nn.Embedding(
@@ -275,5 +274,5 @@ class PositionalEncoding(nn.Module):
 
 
 if __name__ == "__main__":
-    model = Transformer(22, 32, 2, 256, 0.2, False)
+    model = Transformer(22, 32, 2, 256, 0.2)
     print(model)
