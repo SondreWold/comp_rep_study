@@ -12,7 +12,7 @@ from model import Transformer
 from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from utils import create_tokenizer_dict
+from utils import ValidatePredictionPath, create_tokenizer_dict, set_seed, validate_args
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -21,7 +21,13 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser("Training script")
     parser.add_argument("--train_data_path", type=Path)
     parser.add_argument("--val_data_path", type=Path)
-    parser.add_argument("--save_path", type=Path)
+    parser.add_argument("--save_path", type=Path, help="Path to save trained model at")
+    parser.add_argument(
+        "--predictions_path",
+        action=ValidatePredictionPath,
+        type=Path,
+        help="Path to save predictions at",
+    )
     parser.add_argument("--train_batch_size", type=int, default=64)
     parser.add_argument("--val_batch_size", type=int, default=32)
     parser.add_argument("--hidden_size", type=int, default=512)
@@ -29,6 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--epochs", type=int, default=5)
+    parser.add_argument("--seed", type=int, default=1860)
     parser.add_argument("--eval", action="store_true")
     return parser.parse_args()
 
@@ -87,6 +94,8 @@ def val(
 
 
 def main(args: argparse.Namespace):
+    validate_args(args)
+    set_seed(args.seed)
     config = vars(args).copy()
     config_string = "\n".join([f"--{k}: {v}" for k, v in config.items()])
     logging.info(f"\nRunning training loop with the config: \n{config_string}")
@@ -127,7 +136,9 @@ def main(args: argparse.Namespace):
 
     if args.eval:
         searcher = GreedySearch(model, val_dataset.output_language)
-        accuracy = evaluate_generation(model, searcher, val_loader)
+        accuracy = evaluate_generation(
+            model, searcher, val_loader, args.predictions_path
+        )
         logging.info(f"Final accuracy was: {accuracy}")
 
 
