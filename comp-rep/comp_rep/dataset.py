@@ -47,7 +47,11 @@ class Lang:
 
 class SequenceDataset(Dataset):
     def __init__(self, path: pathlib.Path, tokenizer: Optional[dict] = None) -> None:
-        self.pairs = self.read_pairs(path)
+        try:
+            self.pairs = self.read_pairs(path)
+        except IOError:
+            print(f"Failed to read data file from path: {str(path)}")
+            exit(0)
 
         if tokenizer is not None:
             self.input_language = Lang(
