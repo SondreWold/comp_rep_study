@@ -1,13 +1,13 @@
 import argparse
 import logging
 from pathlib import Path
+from typing import Callable
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from dataset import CollateFunctor, SequenceDataset
 from model import Transformer
-from torch.nn.modules.loss import _Loss
 from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -31,7 +31,11 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def get_logits_loss(model: nn.Module, batch: tuple, criterion: _Loss) -> tuple:
+def get_logits_loss(
+    model: nn.Module,
+    batch: tuple,
+    criterion: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
+) -> tuple:
     source_ids, source_mask, target_ids, target_mask, source_str, target_str = batch
     source_ids = source_ids.to(DEVICE)
     source_mask = source_mask.to(DEVICE)
@@ -52,7 +56,7 @@ def train(
     model: nn.Module,
     train_loader: DataLoader,
     optimizer: optim.Optimizer,
-    criterion: _Loss,
+    criterion: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
     scheduler: LRScheduler,
 ) -> float:
     model.train()
@@ -70,7 +74,7 @@ def train(
 def val(
     model: nn.Module,
     val_loader: DataLoader,
-    criterion: _Loss,
+    criterion: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
 ) -> float:
     model.eval()
     val_loss = 0.0
