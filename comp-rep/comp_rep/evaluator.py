@@ -20,7 +20,7 @@ def parse_args() -> argparse.Namespace:
 
 
 class GreedySearch:
-    def __init__(self, model: nn.Module, output_language: Lang, max_length=512):
+    def __init__(self, model: nn.Module, output_language: Lang, max_length: int = 512):
         self.model = model
         self.model.eval()
         self.max_length = max_length
@@ -31,7 +31,7 @@ class GreedySearch:
         self.pad_id = PAD_TOKEN
 
     @torch.no_grad()
-    def __call__(self, source, source_mask):
+    def __call__(self, source: torch.Tensor, source_mask: torch.Tensor):
         source_encoding = self.model.encode_source(source, source_mask)
         # [B, 1], Start tokens to initiate generation
         target = torch.full(
@@ -108,7 +108,7 @@ def main(args: argparse.Namespace) -> None:
     config = vars(args).copy()
     config_string = "\n".join([f"--{k}: {v}" for k, v in config.items()])
     logging.info(f"\nRunning evaluation with the config: \n{config_string}")
-    # TODO: When run as a stand alone
+    # TODO: When run as a stand alone, this requires first implementing saving/loading
 
 
 if __name__ == "__main__":
