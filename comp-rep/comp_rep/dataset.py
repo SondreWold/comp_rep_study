@@ -9,12 +9,9 @@ from torch.utils.data import Dataset
 Pairs = list[tuple[str, str]]
 DatasetItem = tuple[torch.Tensor, torch.Tensor, str, str]
 CollatedItem = tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, str, str]
-
 PAD_TOKEN = 0
 SOS_TOKEN = 1
 EOS_TOKEN = 2
-# The few samples that are longer than this are skipped in order to save resources on the sequences length
-MAX_SAMPLE_LENGTH = 256
 
 
 class Lang:
@@ -74,7 +71,7 @@ class SequenceDataset(Dataset):
         try:
             lines = open(path, encoding="utf-8").read().strip().split("\n")
         except IOError as e:
-            print("Failed to open data file: ", e)
+            raise e
 
         pairs = []
         for line in lines:
