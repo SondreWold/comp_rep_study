@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from dataset import CollateFunctor, SequenceDataset
+from evaluator import GreedySearch, evaluate_generation
 from model import Transformer
 from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.data import DataLoader
@@ -28,6 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--epochs", type=int, default=5)
+    parser.add_argument("--eval", action="store_true")
     return parser.parse_args()
 
 
@@ -120,8 +122,13 @@ def main(args: argparse.Namespace):
         train_loss = train(model, train_loader, optimizer, criterion, None)
         val_loss = val(model, val_loader, criterion)
         logging.info(
-            f"Epoch {epoch}. Train loss: {round(train_loss, 2)}, Val loss: {round(val_loss, 2)}"
+            f"Epoch {epoch}. Train loss: {round(train_loss, 3)}, Val loss: {round(val_loss, 3)}"
         )
+
+    if args.eval:
+        searcher = GreedySearch(model, val_dataset.output_language)
+        accuracy = evaluate_generation(model, searcher, val_loader)
+        logging.info(f"Final accuracy was: {accuracy}")
 
 
 if __name__ == "__main__":
