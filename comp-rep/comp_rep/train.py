@@ -3,18 +3,17 @@ import logging
 from pathlib import Path
 from typing import Callable
 
+import lightning as L
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from dataset import CollateFunctor, SequenceDataset
 from evaluator import GreedySearch, evaluate_generation
+from lightning.pytorch.loggers import TensorBoardLogger
 from model import Transformer
-from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 from utils import ValidatePredictionPath, create_tokenizer_dict, set_seed, validate_args
-
-DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 
 def parse_args() -> argparse.Namespace:
@@ -46,10 +45,6 @@ def get_logits_loss(
     criterion: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
 ) -> tuple:
     source_ids, source_mask, target_ids, target_mask, source_str, target_str = batch
-    source_ids = source_ids.to(DEVICE)
-    source_mask = source_mask.to(DEVICE)
-    target_ids = target_ids.to(DEVICE)
-    target_mask = target_mask.to(DEVICE)
     # Left shift the targets so that the last token predicts the EOS
     logits = model(
         source_ids, source_mask, target_ids[:, :-1], target_mask[:, :-1]
@@ -61,36 +56,50 @@ def get_logits_loss(
     return logits, loss
 
 
-def train(
-    model: nn.Module,
-    train_loader: DataLoader,
-    optimizer: optim.Optimizer,
-    criterion: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
-    scheduler: LRScheduler,
-) -> float:
-    model.train()
-    train_loss = 0.0
-    for batch in tqdm(train_loader):
-        optimizer.zero_grad()
-        logits, loss = get_logits_loss(model, batch, criterion)
-        loss.backward()
-        optimizer.step()
-        train_loss += loss.item()
-    return train_loss / len(train_loader)
+class LitTransformer(L.LightningModule):
+    def __init__(self, args: argparse.Namespace):
+        super().__init__()
+        self.args = args
+        self.model = Transformer(
+            input_vocabulary_size=self.args.input_vocabulary_size,
+            output_vocabulary_size=self.args.output_vocabulary_size,
+            num_transformer_layers=args.layers,
+            hidden_size=args.hidden_size,
+            dropout=args.dropout,
+        )
 
+    def forward(self, batch):
+        source_ids, source_mask, target_ids, target_mask, source_str, target_str = batch
+        # Left shift the targets so that the last token predicts the EOS
+        logits = self.model(
+            source_ids, source_mask, target_ids[:, :-1], target_mask[:, :-1]
+        )  # [batch size, max seq len, vocab]
+        return logits
 
-@torch.no_grad()
-def val(
-    model: nn.Module,
-    val_loader: DataLoader,
-    criterion: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
-) -> float:
-    model.eval()
-    val_loss = 0.0
-    for batch in tqdm(val_loader):
-        logits, loss = get_logits_loss(model, batch, criterion)
-        val_loss += loss.item()
-    return val_loss / len(val_loader)
+    def configure_optimizers(self):
+        optimizer = optim.AdamW(self.model.parameters(), lr=self.args.lr)
+        return optimizer
+
+    def training_step(self, train_batch, batch_idx):
+        logits, loss = get_logits_loss(self.model, train_batch, F.cross_entropy)
+        self.log(
+            "train_loss",
+            loss,
+            batch_size=self.args.train_batch_size,
+            on_epoch=True,
+            prog_bar=True,
+        )
+        return loss
+
+    def validation_step(self, val_batch, batch_idx):
+        logits, loss = get_logits_loss(self.model, val_batch, F.cross_entropy)
+        self.log(
+            "val_loss",
+            loss,
+            batch_size=self.args.val_batch_size,
+            on_epoch=True,
+            prog_bar=True,
+        )
 
 
 def main(args: argparse.Namespace):
@@ -105,39 +114,34 @@ def main(args: argparse.Namespace):
     )
     input_vocabulary_size = len(train_tokenizer["input_language"]["index2word"])
     output_vocabulary_size = len(train_tokenizer["output_language"]["index2word"])
+    args.input_vocabulary_size = input_vocabulary_size
+    args.output_vocabulary_size = output_vocabulary_size
     val_dataset = SequenceDataset(args.val_data_path, tokenizer=train_tokenizer)
     train_loader = DataLoader(
         train_dataset,
         batch_size=args.train_batch_size,
         collate_fn=CollateFunctor(),
         shuffle=True,
+        num_workers=7,
+        persistent_workers=True,
     )
     val_loader = DataLoader(
         val_dataset,
         batch_size=args.val_batch_size,
         collate_fn=CollateFunctor(),
         shuffle=False,
+        num_workers=7,
+        persistent_workers=True,
     )
-    model = Transformer(
-        input_vocabulary_size=input_vocabulary_size,
-        output_vocabulary_size=output_vocabulary_size,
-        num_transformer_layers=args.layers,
-        hidden_size=args.hidden_size,
-        dropout=args.dropout,
-    ).to(DEVICE)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.AdamW(model.parameters(), lr=args.lr)
-    for epoch in range(args.epochs):
-        train_loss = train(model, train_loader, optimizer, criterion, None)
-        val_loss = val(model, val_loader, criterion)
-        logging.info(
-            f"Epoch {epoch}. Train loss: {round(train_loss, 3)}, Val loss: {round(val_loss, 3)}"
-        )
+    model = LitTransformer(args)
+    t_logger = TensorBoardLogger("tb_logs", name="my_model")
+    trainer = L.Trainer(max_epochs=args.epochs, logger=t_logger)
+    trainer.fit(model, train_loader, val_loader)
 
     if args.eval:
-        searcher = GreedySearch(model, val_dataset.output_language)
+        searcher = GreedySearch(model.model, val_dataset.output_language)
         accuracy = evaluate_generation(
-            model, searcher, val_loader, args.predictions_path
+            model.model, searcher, val_loader, args.predictions_path
         )
         logging.info(f"Final accuracy was: {accuracy}")
 
