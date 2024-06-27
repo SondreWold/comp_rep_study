@@ -20,7 +20,7 @@ def parse_args() -> argparse.Namespace:
 
 
 class GreedySearch:
-    def __init__(self, model: nn.Module, output_language: Lang, max_length=256):
+    def __init__(self, model: nn.Module, output_language: Lang, max_length=512):
         self.model = model
         self.model.eval()
         self.max_length = max_length
