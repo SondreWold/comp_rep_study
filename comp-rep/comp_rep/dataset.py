@@ -1,19 +1,17 @@
-from collections import defaultdict
-from torch.utils.data import Dataset
-from typing import Optional
 import pathlib
+from collections import defaultdict
+from typing import Optional
+
 import torch
 import torch.nn.functional as F
+from torch.utils.data import Dataset
 
-Pairs = list[list[str, str]]
+Pairs = list[tuple[str, str]]
 DatasetItem = tuple[torch.Tensor, torch.Tensor, str, str]
 CollatedItem = tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, str, str]
-
 PAD_TOKEN = 0
 SOS_TOKEN = 1
 EOS_TOKEN = 2
-# The few samples that are longer than this are skipped in order to save resources on the sequences length
-MAX_SAMPLE_LENGTH = 256
 
 
 class Lang:
@@ -28,7 +26,7 @@ class Lang:
         if word2index is None:
             word2index = {}
         self.name = name
-        self.word2count = defaultdict(int)
+        self.word2count: dict = defaultdict(int)
         self.word2index = word2index
         self.index2word = index2word
         self.n_words = 3  # Count PAD, SOS and EOS tokens
@@ -49,26 +47,42 @@ class Lang:
 
 class SequenceDataset(Dataset):
     def __init__(self, path: pathlib.Path, tokenizer: Optional[dict] = None) -> None:
-        self.pairs = self.read_pairs(path)
+        try:
+            self.pairs = self.read_pairs(path)
+        except IOError:
+            print(f"Failed to read data file from path: {str(path)}")
+            exit(0)
 
-        self.input_language = Lang("INPUT")
-        self.output_language = Lang("OUTPUT")
-        for ip, op in self.pairs:
-            self.input_language.add_sentence(ip)
-            self.output_language.add_sentence(op)
+        if tokenizer is not None:
+            self.input_language = Lang(
+                "INPUT",
+                word2index=tokenizer["input_language"]["word2index"],
+                index2word=tokenizer["input_language"]["index2word"],
+            )
+            self.output_language = Lang(
+                "OUTPUT",
+                word2index=tokenizer["output_language"]["word2index"],
+                index2word=tokenizer["output_language"]["index2word"],
+            )
+        else:
+            self.input_language = Lang("INPUT")
+            self.output_language = Lang("OUTPUT")
+            for ip, op in self.pairs:
+                self.input_language.add_sentence(ip)
+                self.output_language.add_sentence(op)
 
     def read_pairs(self, path: pathlib.Path) -> Pairs:
         try:
             lines = open(path, encoding="utf-8").read().strip().split("\n")
         except IOError as e:
-            print("Failed to open data file: ", e)
+            raise e
 
         pairs = []
         for line in lines:
             inl, outl = line.split(";")
             inl = inl.strip()
             outl = outl.strip()
-            pairs.append([inl, outl])
+            pairs.append((inl, outl))
         return pairs
 
     def __len__(self) -> int:
@@ -111,9 +125,3 @@ class CollateFunctor:
         )
         attention_mask = subword_ids == self.pad_id
         return subword_ids, attention_mask
-
-
-if __name__ == "__main__":
-    test_path = "../data/base_tasks/pcfgs_train.csv"
-    data = SequenceDataset(path=test_path)
-    print(data[0])

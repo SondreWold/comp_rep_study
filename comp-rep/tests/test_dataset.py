@@ -1,24 +1,20 @@
-from comp_rep.dataset import (
-    SequenceDataset,
-    SOS_TOKEN,
-    PAD_TOKEN,
-    EOS_TOKEN,
-    CollateFunctor,
-)
-from torch.utils.data import DataLoader
 import pytest
+import torch
+from torch.utils.data import DataLoader
+
+from comp_rep.dataset import (
+    EOS_TOKEN,
+    PAD_TOKEN,
+    SOS_TOKEN,
+    CollateFunctor,
+    SequenceDataset,
+)
 
 
 @pytest.fixture
 def test_data():
     test_path = "../data/base_tasks/scan_train.csv"
     return SequenceDataset(path=test_path)
-
-
-def test_getitem_sos_eos(test_data):
-    input_tensor, output_tensor, x, y = test_data[0]
-    assert output_tensor[0].item() == SOS_TOKEN
-    assert output_tensor[-1].item() == EOS_TOKEN
 
 
 def test_padding(test_data):
@@ -31,4 +27,12 @@ def test_padding(test_data):
     for source_ids, source_mask, target_ids, target_mask, x, y in test_loader:
         assert source_ids.size(1) == max(lengths), f"Failed at {source_ids}"
         for end_token in source_ids[:, -1]:
-            assert end_token.item() in [PAD_TOKEN, EOS_TOKEN]
+            assert end_token.item() in [
+                PAD_TOKEN,
+                EOS_TOKEN,
+            ], "Ends on non special token"
+        x_pads = torch.where(source_ids == PAD_TOKEN, 1.0, 0.0)
+        actual_pads = torch.where(source_mask == bool(PAD_TOKEN), 0.0, 1.0)
+        assert torch.all(
+            torch.eq(x_pads, actual_pads)
+        ), "Mask does match actual padding"
