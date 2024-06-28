@@ -10,17 +10,32 @@ import torch.nn.functional as F
 import torch.optim as optim
 from dataset import CollateFunctor, SequenceDataset
 from evaluator import GreedySearch, evaluate_generation
-from lightning.pytorch.loggers import TensorBoardLogger
+from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.loggers import WandbLogger
 from model import Transformer
 from torch.utils.data import DataLoader
-from utils import ValidatePredictionPath, create_tokenizer_dict, set_seed, validate_args
+from utils import (
+    ValidatePredictionPath,
+    ValidateSavePath,
+    create_tokenizer_dict,
+    save_tokenizer,
+    set_seed,
+    validate_args,
+)
+
+import wandb
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser("Training script")
     parser.add_argument("--train_data_path", type=Path)
     parser.add_argument("--val_data_path", type=Path)
-    parser.add_argument("--save_path", type=Path, help="Path to save trained model at")
+    parser.add_argument(
+        "--save_path",
+        action=ValidateSavePath,
+        type=Path,
+        help="Path to save trained model at",
+    )
     parser.add_argument(
         "--predictions_path",
         action=ValidatePredictionPath,
@@ -88,6 +103,7 @@ class LitTransformer(L.LightningModule):
             batch_size=self.args.train_batch_size,
             on_epoch=True,
             prog_bar=True,
+            logger=True,
         )
         return loss
 
@@ -100,6 +116,7 @@ class LitTransformer(L.LightningModule):
             on_epoch=True,
             prog_bar=True,
         )
+        return loss
 
 
 def main(args: argparse.Namespace):
@@ -134,9 +151,23 @@ def main(args: argparse.Namespace):
         persistent_workers=True,
     )
     model = LitTransformer(args)
-    t_logger = TensorBoardLogger("tb_logs", name="my_model")
-    trainer = L.Trainer(max_epochs=args.epochs, logger=t_logger)
+    wandb_logger = WandbLogger(
+        entity="pmmon-Ludwig MaximilianUniversity of Munich",
+        project="compositional_representations",
+        config=config,
+    )
+    checkpoint_callback = ModelCheckpoint(
+        monitor="val_loss",
+        dirpath=args.save_path,
+        filename="model",
+        save_top_k=1,
+        mode="min",
+    )
+    trainer = L.Trainer(
+        callbacks=[checkpoint_callback], max_epochs=args.epochs, logger=wandb_logger
+    )
     trainer.fit(model, train_loader, val_loader)
+    save_tokenizer(args.save_path, train_tokenizer)
 
     if args.eval:
         searcher = GreedySearch(model.model, val_dataset.output_language)
@@ -144,6 +175,8 @@ def main(args: argparse.Namespace):
             model.model, searcher, val_loader, args.predictions_path
         )
         logging.info(f"Final accuracy was: {accuracy}")
+        wandb.log({"final_accuracy": accuracy})  # type: ignore[attr-defined]
+    wandb.finish()  # type: ignore[attr-defined]
 
 
 if __name__ == "__main__":

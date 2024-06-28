@@ -48,6 +48,7 @@ class GreedySearch:
             prediction = torch.where(stop, self.pad_id, prediction.argmax(-1))
             # Set stop to True where the prediction is equal to EOS token
             stop |= prediction == self.eos_id
+            stop |= prediction == self.pad_id
             target = torch.cat([target, prediction.unsqueeze(1)], dim=1)
             if stop.all():
                 break

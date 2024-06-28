@@ -1,4 +1,5 @@
 import argparse
+import json
 import random
 from pathlib import Path
 from typing import Dict
@@ -8,6 +9,10 @@ import torch
 from dataset import Lang
 
 
+def keystoint(x):
+    return {(int(k) if k.isdigit() else k): v for k, v in x.items()}
+
+
 class ValidatePredictionPath(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         if ".csv" in str(values):
@@ -15,6 +20,14 @@ class ValidatePredictionPath(argparse.Action):
                 "Only provide the path where you want to store the predictions file"
             )
         Path(values).mkdir(parents=True, exist_ok=True)
+        setattr(namespace, self.dest, values)
+
+
+class ValidateSavePath(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        Path(values).mkdir(parents=True, exist_ok=True)
+        if (Path.cwd() / str(values) / "model.ckpt").exists():
+            print("WARNING: There is already a model file saved on that path!")
         setattr(namespace, self.dest, values)
 
 
@@ -50,3 +63,20 @@ def create_tokenizer_dict(input_lang: Lang, output_lang: Lang) -> Dict:
             "word2index": output_lang.word2index,
         },
     }
+
+
+def save_tokenizer(path: Path, tokenizer: dict) -> None:
+    """
+    Saves the index2word and word2index dicts from the languages
+    """
+    with open(path / "tokenizers.json", "w", encoding="utf-8") as f:
+        json.dump(tokenizer, f, ensure_ascii=False, indent=4)
+
+
+def load_tokenizer(path: Path) -> Dict:
+    """
+    Loads the index2word and word2index dicts for both languages
+    """
+    with open(path / "tokenizers.json", "r") as f:
+        tokenizers = json.load(f, object_hook=keystoint)
+    return tokenizers
