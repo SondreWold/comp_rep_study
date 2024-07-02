@@ -25,7 +25,7 @@ class MaskedLinear(nn.Module, abc.ABC):
             bias (bool, optional): If set to False, the layer will not learn an additive bias. Default: True.
         """
         super(MaskedLinear, self).__init__()
-
+        self.out_features, self.in_features = weight.shape
         self.weight = nn.Parameter(weight)
         if bias is not None:
             self.bias = nn.Parameter(bias)
@@ -87,16 +87,14 @@ class ContinuousMaskLinear(MaskedLinear):
         bias: Tensor | None = None,
         mask_initial_value: float = 0.0,
         ticket: bool = False,
-        temp: float = 1,
+        temp: float = 1.0,
         temp_step_increase: float = 1.0,
     ):
         super(MaskedLinear, self).__init__(weights, bias)
-        self.out_features, self.in_features = weights.shape
         self.mask_initial_value = mask_initial_value
         self.ticket = ticket  # For evaluation mode, use the actual heaviside function
         self.temp = temp
         self.temp_step_increase = temp_step_increase
-        self.local_step = 1
 
     def init_s_matrix(self) -> Tensor:
         s_matrix = nn.Parameter(
@@ -108,12 +106,11 @@ class ContinuousMaskLinear(MaskedLinear):
         return s_matrix
 
     def compute_mask(self, s_matrix: Tensor) -> Tensor:
-        self.local_step += 1
-        temperature_update = 1 + (self.temp_step_increase * self.local_step)
         if self.ticket:
             mask = (s_matrix > 0).float()
         else:
-            mask = F.sigmoid(temperature_update * self.s_matrix)
+            mask = F.sigmoid(self.temp * self.s_matrix)
+            self.temp += self.temp_step_increase
         return mask
 
 
