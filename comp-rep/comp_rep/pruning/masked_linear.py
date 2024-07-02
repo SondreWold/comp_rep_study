@@ -1,5 +1,5 @@
 """
-Modules to find subnetworks via model pruning
+Masked linear layers for model pruning.
 """
 
 import abc
@@ -10,12 +10,12 @@ import torch.nn.functional as F
 from torch import Tensor
 
 
-class MaskedLinear(nn.Linear, abc.ABC):
+class MaskedLinear(nn.Module, abc.ABC):
     """
     An abstract base class for a linear layer with a customizable mask.
     """
 
-    def __init__(self, in_features: int, out_features: int, bias: bool = True):
+    def __init__(self, weights: Tensor, bias: Tensor | None = None):
         """
         Initializes the MaskedLinear layer.
 
@@ -24,7 +24,12 @@ class MaskedLinear(nn.Linear, abc.ABC):
             out_features (int): Size of each output sample.
             bias (bool, optional): If set to False, the layer will not learn an additive bias. Default: True.
         """
-        super(MaskedLinear, self).__init__(in_features, out_features, bias)
+        self.weight = weights
+        if bias is not None:
+            self.bias = bias
+        else:
+            self.register_parameter("bias", None)
+
         self.s_matrix = self.init_s_matrix()
 
     @abc.abstractmethod
