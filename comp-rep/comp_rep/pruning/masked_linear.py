@@ -80,6 +80,17 @@ class MaskedLinear(nn.Module, abc.ABC):
         return f"in_features={self.weight.shape[1]}, out_features={self.weight.shape[0]}, bias={self.bias is not None}"
 
 
+class ContinuousMaskLinear(MaskedLinear):
+    def __init__(self, in_features: int, out_features: int, bias: bool = True):
+        super(MaskedLinear, self).__init__(in_features, out_features, bias)
+
+    def init_s_matrix(self) -> Tensor:
+        return super().init_s_matrix()
+
+    def compute_mask(self, s_matrix: Tensor) -> Tensor:
+        return super().compute_mask(s_matrix)
+
+
 class SampledMaskLinear(MaskedLinear):
     """
     A masked linear layer based on sampling. Masks are binarized to only keep or remove individual weights.
@@ -111,7 +122,7 @@ class SampledMaskLinear(MaskedLinear):
         U1 = torch.maximum(min_sampled_value, torch.rand_like(self.weight))
         U2 = torch.maximum(min_sampled_value, torch.rand_like(self.weight))
 
-        log_ratio = torch.log(torch.log(U1) / torch.log(U2) + eps)
+        log_ratio = torch.log(torch.log(U1) / torch.log(U2))
         s_i = torch.sigmoid((self.logits - log_ratio) / self.tau)
 
         return s_i
@@ -131,14 +142,3 @@ class SampledMaskLinear(MaskedLinear):
         b_i = (b_i - s_matrix).detach() + s_matrix
 
         return b_i
-
-
-class ContinuousMaskLinear(MaskedLinear):
-    def __init__(self, in_features: int, out_features: int, bias: bool = True):
-        super(MaskedLinear, self).__init__(in_features, out_features, bias)
-
-    def init_s_matrix(self) -> Tensor:
-        return super().init_s_matrix()
-
-    def compute_mask(self, s_matrix: Tensor) -> Tensor:
-        return super().compute_mask(s_matrix)
