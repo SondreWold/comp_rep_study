@@ -80,18 +80,60 @@ class MaskedLinear(nn.Module, abc.ABC):
         return f"in_features={self.weight.shape[1]}, out_features={self.weight.shape[0]}, bias={self.bias is not None}"
 
 
-class ContinuousMaskLinear(MaskedLinear):
-    def __init__(self, in_features: int, out_features: int, bias: bool = True):
-        super(MaskedLinear, self).__init__(in_features, out_features, bias)
+class SampledMaskLinear(MaskedLinear):
+    """
+    A masked linear layer based on sampling. Masks are binarized to only keep or remove individual weights.
+    This is achieved using a Gumbel-Sigmoid with a straight-through estimator.
+    """
 
-    def init_s_matrix(self) -> Tensor:
-        return super().init_s_matrix()
+    def __init__(self, weight: Tensor, bias: Tensor | None = None, tau: float = 1.0):
+        """
+        Initializes the SampledMaskLinear layer.
+
+        Args:
+            weight (Tensor): The weight matrix of the linear layer.
+            bias (Tensor, optional): The bias vector of the linear layer. Default: None.
+            tau (float): The tau parameter for the s_i computation. Default: 1.0.
+        """
+        self.tau = tau
+        self.logits = nn.Parameter(torch.ones_like(weight)) * 0.9
+        super(SampledMaskLinear, self).__init__(weight, bias)
+
+    def init_s_matrix(self, eps: float = 1e-10) -> Tensor:
+        """
+        Initializes the s_matrix using the specified formula:
+        s_i = sigma((l_i - log(log(U_1) / log(U_2))) / tau) with U_1, U_2 ~ U(0, 1).
+
+        Returns:
+            Tensor: The initialized s_matrix tensor.
+        """
+        min_sampled_value = torch.ones_like(self.weight) * eps
+        U1 = torch.maximum(min_sampled_value, torch.rand_like(self.weight))
+        U2 = torch.maximum(min_sampled_value, torch.rand_like(self.weight))
+
+        log_ratio = torch.log(torch.log(U1) / torch.log(U2) + eps)
+        s_i = torch.sigmoid((self.logits - log_ratio) / self.tau)
+
+        return s_i
 
     def compute_mask(self, s_matrix: Tensor) -> Tensor:
-        return super().compute_mask(s_matrix)
+        """
+        Computes and returns the mask to be applied to the weights using the straight-through estimator.
+
+        Args:
+            s_matrix (Tensor): The additional variable used to compute the mask.
+
+        Returns:
+            Tensor: The mask tensor.
+        """
+        with torch.no_grad():
+            b_i = (s_matrix > 0.5).type_as(s_matrix)
+        b_i = (b_i - s_matrix).detach() + s_matrix
+
+        return b_i
 
 
-class SampledMaskLinear(MaskedLinear):
+class ContinuousMaskLinear(MaskedLinear):
     def __init__(self, in_features: int, out_features: int, bias: bool = True):
         super(MaskedLinear, self).__init__(in_features, out_features, bias)
 
