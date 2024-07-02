@@ -81,14 +81,40 @@ class MaskedLinear(nn.Module, abc.ABC):
 
 
 class ContinuousMaskLinear(MaskedLinear):
-    def __init__(self, in_features: int, out_features: int, bias: bool = True):
-        super(MaskedLinear, self).__init__(in_features, out_features, bias)
+    def __init__(
+        self,
+        weights: Tensor,
+        bias: Tensor | None = None,
+        mask_initial_value: float = 0.0,
+        ticket: bool = False,
+        temp: float = 1,
+        temp_step_increase: float = 1.0,
+    ):
+        super(MaskedLinear, self).__init__(weights, bias)
+        self.out_features, self.in_features = weights.shape
+        self.mask_initial_value = mask_initial_value
+        self.ticket = ticket  # For evaluation mode, use the actual heaviside function
+        self.temp = temp
+        self.temp_step_increase = temp_step_increase
+        self.local_step = 1
 
     def init_s_matrix(self) -> Tensor:
-        return super().init_s_matrix()
+        s_matrix = nn.Parameter(
+            nn.init.constant_(
+                torch.Tensor(self.in_features, self.out_features),
+                self.mask_initial_value,
+            )
+        )
+        return s_matrix
 
     def compute_mask(self, s_matrix: Tensor) -> Tensor:
-        return super().compute_mask(s_matrix)
+        self.local_step += 1
+        temperature_update = 1 + (self.temp_step_increase * self.local_step)
+        if self.ticket:
+            mask = (s_matrix > 0).float()
+        else:
+            mask = F.sigmoid(temperature_update * self.s_matrix)
+        return mask
 
 
 class SampledMaskLinear(MaskedLinear):
