@@ -77,10 +77,15 @@ class MaskedLinear(nn.Module, abc.ABC):
         return torch.norm(self.weight, p=1)
 
     def extra_repr(self) -> str:
-        return f"in_features={self.weight.shape[1]}, out_features={self.weight.shape[0]}, bias={self.bias is not None}"
+        return f"in_features={self.in_features}, out_features={self.out_features}, bias={self.bias is not None}"
 
 
 class ContinuousMaskLinear(MaskedLinear):
+    """
+    A masked linear layer based on continuous sparsification.
+    Masks are binarized to only keep or remove individual weights.
+    """
+
     def __init__(
         self,
         weights: Tensor,
@@ -97,6 +102,12 @@ class ContinuousMaskLinear(MaskedLinear):
         self.temp_step_increase = temp_step_increase
 
     def init_s_matrix(self) -> Tensor:
+        """
+        Initializes the constant s_matrix.
+
+        Returns:
+            Tensor: The initialized s_matrix tensor.
+        """
         s_matrix = nn.Parameter(
             nn.init.constant_(
                 torch.Tensor(self.in_features, self.out_features),
@@ -106,6 +117,15 @@ class ContinuousMaskLinear(MaskedLinear):
         return s_matrix
 
     def compute_mask(self, s_matrix: Tensor) -> Tensor:
+        """
+        Computes and returns the mask to be applied to the weights using the straight-through estimator.
+
+        Args:
+            s_matrix (Tensor): The additional variable used to compute the mask.
+
+        Returns:
+            Tensor: The mask tensor.
+        """
         if self.ticket:
             mask = (s_matrix > 0).float()
         else:
