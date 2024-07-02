@@ -24,9 +24,11 @@ class MaskedLinear(nn.Module, abc.ABC):
             out_features (int): Size of each output sample.
             bias (bool, optional): If set to False, the layer will not learn an additive bias. Default: True.
         """
-        self.weight = weight
+        super(MaskedLinear, self).__init__()
+
+        self.weight = nn.Parameter(weight)
         if bias is not None:
-            self.bias = bias
+            self.bias = nn.Parameter(bias)
         else:
             self.register_parameter("bias", None)
 
