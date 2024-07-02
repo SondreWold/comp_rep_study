@@ -3,11 +3,14 @@ Masked linear layers for model pruning.
 """
 
 import abc
+from typing import Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
+
+from comp_rep.pruning.batch_ops import batch_bias_add, batch_matmul
 
 
 class MaskedLinear(nn.Module, abc.ABC):
@@ -32,8 +35,6 @@ class MaskedLinear(nn.Module, abc.ABC):
         else:
             self.register_parameter("bias", None)
 
-        self.s_matrix = self.init_s_matrix()
-
     @abc.abstractmethod
     def init_s_matrix(self) -> Tensor:
         """
@@ -54,6 +55,7 @@ class MaskedLinear(nn.Module, abc.ABC):
         """
         pass
 
+    @abc.abstractmethod
     def forward(self, x: Tensor) -> Tensor:
         """
         Applies the linear transformation to the input data using masked weights.
@@ -64,8 +66,7 @@ class MaskedLinear(nn.Module, abc.ABC):
         Returns:
             Tensor: The output tensor.
         """
-        masked_weight = self.weight * self.compute_mask(self.s_matrix)
-        return F.linear(x, masked_weight, self.bias)
+        pass
 
     def compute_l1_norm(self) -> Tensor:
         """
@@ -78,6 +79,104 @@ class MaskedLinear(nn.Module, abc.ABC):
 
     def extra_repr(self) -> str:
         return f"in_features={self.in_features}, out_features={self.out_features}, bias={self.bias is not None}"
+
+
+class SampledMaskLinear(MaskedLinear):
+    """
+    A masked linear layer based on sampling. Masks are binarized to only keep or remove individual weights.
+    This is achieved using a Gumbel-Sigmoid with a straight-through estimator.
+    """
+
+    def __init__(
+        self,
+        weight: Tensor,
+        bias: Optional[Tensor] = None,
+        tau: float = 1.0,
+        num_masks: int = 1,
+    ):
+        """
+        Initializes the SampledMaskLinear layer.
+
+        Args:
+            weight (Tensor): The weight matrix of the linear layer.
+            bias (Tensor, optional): The bias vector of the linear layer. Default: None.
+            tau (float): The tau parameter for the s_i computation. Default: 1.0.
+            num_masks (int): The number of mask samples. Default: 1.
+        """
+        super(SampledMaskLinear, self).__init__(weight, bias)
+        self.tau = tau
+        self.num_masks = num_masks
+        self.logits = nn.Parameter(
+            torch.ones_like(weight) * torch.log(torch.tensor(9.0))
+        )
+        self.s_matrix = self.init_s_matrix()
+
+    def sample_s_matrix(self, eps: float = 1e-10) -> Tensor:
+        """
+        Samples the s_matrix using the specified formula:
+        s_i = sigma((l_i - log(log(U_1) / log(U_2))) / tau) with U_1, U_2 ~ U(0, 1).
+
+        Returns:
+            Tensor: The initialized s_matrix tensor.
+        """
+        min_sampled_value = torch.ones_like(self.weight) * eps
+        U1 = torch.maximum(min_sampled_value, torch.rand_like(self.weight))
+        U2 = torch.maximum(min_sampled_value, torch.rand_like(self.weight))
+
+        log_ratio = torch.log(torch.log(U1) / torch.log(U2))
+        s_matrix = torch.sigmoid((self.logits - log_ratio) / self.tau)
+
+        return s_matrix
+
+    def init_s_matrix(self) -> Tensor:
+        """
+        Initializes multiple s_matrices.
+
+        Returns:
+            Tensor: Stacked s_matrix tensors (stacked in the 0th dimension).
+        """
+        s_matrices = [self.sample_s_matrix(eps=1e-10) for _ in range(self.num_masks)]
+        return torch.stack(s_matrices, dim=0)
+
+    def compute_mask(self, s_matrix: Tensor) -> Tensor:
+        """
+        Computes and returns the mask to be applied to the weights using the straight-through estimator.
+
+        Args:
+            s_matrix (Tensor): The additional variable used to compute the mask.
+
+        Returns:
+            Tensor: The mask tensor.
+        """
+        with torch.no_grad():
+            b_i = (s_matrix > 0.5).type_as(s_matrix)
+        b_i = (b_i - s_matrix).detach() + s_matrix
+
+        return b_i
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Applies the linear transformation to the input data using masked weights.
+
+        Args:
+            x (Tensor): The input tensor.
+
+        Returns:
+            Tensor: The output tensor.
+        """
+        masks = self.compute_mask(self.s_matrix)
+        masked_weight = self.weight.unsqueeze(0) * masks
+        output = batch_matmul(
+            x, masked_weight.transpose(-1, -2)
+        )  # transpose for batch multiplication
+
+        if self.bias is not None:
+            output = batch_bias_add(output, self.bias)
+
+        return output
+
+    def extra_repr(self) -> str:
+        return f"in_features={self.in_features}, out_features={self.out_features}, bias={self.bias is not None}, s_matrix={self.s_matrix.shape}"
 
 
 class ContinuousMaskLinear(MaskedLinear):
@@ -100,6 +199,7 @@ class ContinuousMaskLinear(MaskedLinear):
         self.ticket = ticket  # For evaluation mode, use the actual heaviside function
         self.temp = temp
         self.temp_step_increase = temp_step_increase
+        self.s_matrix = self.init_s_matrix()
 
     def init_s_matrix(self) -> Tensor:
         """
@@ -133,55 +233,42 @@ class ContinuousMaskLinear(MaskedLinear):
             self.temp += self.temp_step_increase
         return mask
 
-
-class SampledMaskLinear(MaskedLinear):
-    """
-    A masked linear layer based on sampling. Masks are binarized to only keep or remove individual weights.
-    This is achieved using a Gumbel-Sigmoid with a straight-through estimator.
-    """
-
-    def __init__(self, weight: Tensor, bias: Tensor | None = None, tau: float = 1.0):
+    def forward(self, x: Tensor) -> Tensor:
         """
-        Initializes the SampledMaskLinear layer.
+        Applies the linear transformation to the input data using masked weights.
 
         Args:
-            weight (Tensor): The weight matrix of the linear layer.
-            bias (Tensor, optional): The bias vector of the linear layer. Default: None.
-            tau (float): The tau parameter for the s_i computation. Default: 1.0.
-        """
-        self.tau = tau
-        self.logits = nn.Parameter(torch.ones_like(weight)) * 0.9
-        super(SampledMaskLinear, self).__init__(weight, bias)
-
-    def init_s_matrix(self, eps: float = 1e-10) -> Tensor:
-        """
-        Initializes the s_matrix using the specified formula:
-        s_i = sigma((l_i - log(log(U_1) / log(U_2))) / tau) with U_1, U_2 ~ U(0, 1).
+            x (Tensor): The input tensor.
 
         Returns:
-            Tensor: The initialized s_matrix tensor.
+            Tensor: The output tensor.
         """
-        min_sampled_value = torch.ones_like(self.weight) * eps
-        U1 = torch.maximum(min_sampled_value, torch.rand_like(self.weight))
-        U2 = torch.maximum(min_sampled_value, torch.rand_like(self.weight))
+        masks = self.compute_mask(self.s_matrix)
+        masked_weight = self.weight * masks
+        return F.linear(x, masked_weight, self.bias)
 
-        log_ratio = torch.log(torch.log(U1) / torch.log(U2))
-        s_i = torch.sigmoid((self.logits - log_ratio) / self.tau)
+    def extra_repr(self) -> str:
+        return f"in_features={self.in_features}, out_features={self.out_features}, bias={self.bias is not None}, s_matrix={self.s_matrix.shape}"
 
-        return s_i
 
-    def compute_mask(self, s_matrix: Tensor) -> Tensor:
-        """
-        Computes and returns the mask to be applied to the weights using the straight-through estimator.
+if __name__ == "__main__":
+    batch_size = 18
+    num_mask = 2
+    tau = 1.0
+    in_features = 3
+    out_features = 5
 
-        Args:
-            s_matrix (Tensor): The additional variable used to compute the mask.
+    # create a dummy input tensor
+    input_tensor = torch.randn(batch_size, in_features)
 
-        Returns:
-            Tensor: The mask tensor.
-        """
-        with torch.no_grad():
-            b_i = (s_matrix > 0.5).type_as(s_matrix)
-        b_i = (b_i - s_matrix).detach() + s_matrix
+    # layers
+    linear_layer = nn.Linear(in_features, out_features, bias=True)
+    print(f"Linear layer: \n{linear_layer}")
 
-        return b_i
+    sampled_mask_linear = SampledMaskLinear(
+        linear_layer.weight, linear_layer.bias, tau=tau, num_masks=num_mask
+    )
+    print(f"Sampled masked layer: \n{sampled_mask_linear}")
+
+    output_tensor = sampled_mask_linear(input_tensor)
+    print(f"out tensor: \n{output_tensor}")

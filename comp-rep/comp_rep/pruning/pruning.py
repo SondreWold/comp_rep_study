@@ -2,40 +2,118 @@
 Modules to find subnetworks via model pruning
 """
 
+from copy import deepcopy
 from typing import Any, Literal
 
+import torch
 import torch.nn as nn
 
 from comp_rep.pruning.masked_linear import ContinuousMaskLinear, SampledMaskLinear
 
 
 class MaskedModel(nn.Module):
+    """
+    A model wrapper that applies a masking strategy for model pruning.
+    """
+
     def __init__(
         self,
         model: nn.Module,
         pruning_method: Literal["continuous", "sampled"],
-        maskedlayer_kwargs: dict,
+        maskedlayer_kwargs: dict[str, Any],
     ):
-        self.model = model
-        self.init_model(maskedlayer_kwargs)
-        self.masker: Any
-        if pruning_method == "continuous":
-            self.masker = ContinuousMaskLinear
-        elif pruning_method == "sampled":
-            self.masker = SampledMaskLinear
-        else:
-            raise Exception("Invalid pruning strategy method provided")
+        super(MaskedModel, self).__init__()
+        self.model = deepcopy(model)
+        self.init_model(maskedlayer_kwargs, pruning_method)
 
-    def freeze_initial_model(self):
+    def freeze_initial_model(self) -> None:
+        """
+        Freezes the initial model parameters to prevent updates during training.
+        """
         for p in self.model.parameters():
-            p.requires_grad_ = False
+            p.requires_grad = False
 
-    def init_model(self, maskedlayer_kwargs: dict):
+    def init_model(
+        self,
+        maskedlayer_kwargs: dict[str, Any],
+        pruning_method: Literal["continuous", "sampled"],
+    ) -> None:
+        """
+        Initializes the model by replacing linear layers with masked layers.
+
+        Args:
+            maskedlayer_kwargs (dict[str, Any]): Additional keyword-arguments for the masked layer.
+        """
         self.freeze_initial_model()
 
-        for m in self.model.modules():
-            if isinstance(m, nn.Linear()):
-                m = self.masker(m, **maskedlayer_kwargs)
+        def replace_linear(module: nn.Module) -> None:
+            for name, child in module.named_children():
+                if isinstance(child, nn.Linear):
+                    if pruning_method == "continuous":
+                        setattr(
+                            module,
+                            name,
+                            ContinuousMaskLinear(
+                                child.weight, child.bias, **maskedlayer_kwargs
+                            ),
+                        )
+                    elif pruning_method == "sampled":
+                        setattr(
+                            module,
+                            name,
+                            SampledMaskLinear(
+                                child.weight, child.bias, **maskedlayer_kwargs
+                            ),
+                        )
+                    else:
+                        raise ValueError("Invalid pruning strategy method provided")
+                else:
+                    replace_linear(child)
 
-    def forward(self, x):
+        replace_linear(self.model)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Defines the forward pass of the model.
+
+        Args:
+            x (torch.Tensor): The input tensor.
+
+        Returns:
+            torch.Tensor: The output tensor.
+        """
         return self.model(x)
+
+
+if __name__ == "__main__":
+
+    class SimpleModel(nn.Module):
+        def __init__(self):
+            super(SimpleModel, self).__init__()
+            self.fc1 = nn.Linear(10, 20)
+            self.fc2 = nn.Linear(20, 10)
+
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            x = torch.relu(self.fc1(x))
+            x = self.fc2(x)
+            return x
+
+    # Define masked layer arguments
+    maskedlayer_kwargs = {"tau": 1.0, "num_masks": 2}
+
+    # Create a simple model
+    model = SimpleModel()
+    print(f"Toy model: \n{model}")
+    masked_model = MaskedModel(
+        model, pruning_method="sampled", maskedlayer_kwargs=maskedlayer_kwargs
+    )
+
+    print(f"Toy model: \n{model}")
+    print(f"Masked model: \n{masked_model}")
+
+    # Create dummy input data
+    input_data = torch.randn(18, 10)
+    output_data = masked_model(input_data)
+
+    print(f"in tensor: \n{input_data.shape}")
+    print(f"out tensor: \n{output_data.shape}")
