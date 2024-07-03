@@ -37,11 +37,11 @@ class MaskedLayerNorm(nn.Module, abc.ABC):
         pass
 
     @abc.abstractmethod
-    def compute_mask(self, s_weight) -> tuple[Tensor, Tensor]:
+    def compute_mask(self, s_weight) -> Tensor:
         pass
 
     def compute_l1_norm(self, s_weight: Tensor):
-        return torch.norm(self.s_weight, p=1)
+        return torch.norm(self.compute_mask(self.s_weight), p=1)
 
 
 class ContinuousMaskLayerNorm(MaskedLayerNorm):
