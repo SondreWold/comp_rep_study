@@ -188,13 +188,13 @@ class ContinuousMaskLinear(MaskedLinear):
     def __init__(
         self,
         weights: Tensor,
-        bias: Tensor | None = None,
+        bias: Optional[Tensor] = None,
         mask_initial_value: float = 0.0,
         ticket: bool = False,
         temp: float = 1.0,
         temp_step_increase: float = 1.0,
     ):
-        super(MaskedLinear, self).__init__(weights, bias)
+        super(ContinuousMaskLinear, self).__init__(weights, bias)
         self.mask_initial_value = mask_initial_value
         self.ticket = ticket  # For evaluation mode, use the actual heaviside function
         self.temp = temp
