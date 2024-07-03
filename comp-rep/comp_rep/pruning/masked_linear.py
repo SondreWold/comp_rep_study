@@ -68,14 +68,14 @@ class MaskedLinear(nn.Module, abc.ABC):
         """
         pass
 
-    def compute_l1_norm(self) -> Tensor:
+    def compute_l1_norm(self, s_matrix: Tensor) -> Tensor:
         """
         Computes and returns the L1 norm of the weights.
 
         Returns:
             Tensor: The L1 norm of the weights.
         """
-        return torch.norm(self.weight, p=1)
+        return torch.norm(self.compute_mask(s_matrix), p=1)
 
     def extra_repr(self) -> str:
         return f"in_features={self.in_features}, out_features={self.out_features}, bias={self.bias is not None}"
@@ -218,7 +218,7 @@ class ContinuousMaskLinear(MaskedLinear):
 
     def compute_mask(self, s_matrix: Tensor) -> Tensor:
         """
-        Computes and returns the mask to be applied to the weights using the straight-through estimator.
+        Computes and returns the mask to be applied to the weights using the heaviside function or sigmoid.
 
         Args:
             s_matrix (Tensor): The additional variable used to compute the mask.
