@@ -210,7 +210,7 @@ class ContinuousMaskLinear(MaskedLinear):
         """
         s_matrix = nn.Parameter(
             nn.init.constant_(
-                torch.Tensor(self.in_features, self.out_features),
+                torch.Tensor(self.out_features, self.in_features),
                 self.mask_initial_value,
             )
         )
@@ -268,7 +268,12 @@ if __name__ == "__main__":
     sampled_mask_linear = SampledMaskLinear(
         linear_layer.weight, linear_layer.bias, tau=tau, num_masks=num_mask
     )
-    print(f"Sampled masked layer: \n{sampled_mask_linear}")
 
-    output_tensor = sampled_mask_linear(input_tensor)
-    print(f"out tensor: \n{output_tensor}")
+    cont_mask_linear = ContinuousMaskLinear(linear_layer.weight, linear_layer.bias)
+    print(f"Sampled masked layer: \n{sampled_mask_linear}")
+    print(f"Continuous  masked layer: \n{cont_mask_linear}")
+
+    output_tensor_sample = sampled_mask_linear(input_tensor)
+    output_tensor_cont = cont_mask_linear(input_tensor)
+    print(f"Sampled out tensor: \n{output_tensor_sample}")
+    print(f"Continuous out tensor: \n{output_tensor_cont}")

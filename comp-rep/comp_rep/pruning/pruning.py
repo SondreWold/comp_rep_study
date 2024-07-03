@@ -99,21 +99,33 @@ if __name__ == "__main__":
             return x
 
     # Define masked layer arguments
-    maskedlayer_kwargs = {"tau": 1.0, "num_masks": 2}
+    sampled_maskedlayer_kwargs = {"tau": 1.0, "num_masks": 2}
+    cont_maskedlayer_kwargs = {
+        "mask_initial_value": 1.0,
+        "ticket": False,
+        "temp": 2.0,
+        "temp_step_increase": 3.68,
+    }
 
     # Create a simple model
     model = SimpleModel()
     print(f"Toy model: \n{model}")
-    masked_model = MaskedModel(
-        model, pruning_method="sampled", maskedlayer_kwargs=maskedlayer_kwargs
+    sampled_masked_model = MaskedModel(
+        model, pruning_method="sampled", maskedlayer_kwargs=sampled_maskedlayer_kwargs
+    )
+    cont_masked_model = MaskedModel(
+        model, pruning_method="continuous", maskedlayer_kwargs=cont_maskedlayer_kwargs
     )
 
     print(f"Toy model: \n{model}")
-    print(f"Masked model: \n{masked_model}")
+    print(f"Sampled Masked model: \n{sampled_masked_model}")
+    print(f"Continuous Masked model: \n{cont_masked_model}")
 
     # Create dummy input data
     input_data = torch.randn(18, 10)
-    output_data = masked_model(input_data)
+    sampled_output_data = sampled_masked_model(input_data)
+    cont_output_data = cont_masked_model(input_data)
 
     print(f"in tensor: \n{input_data.shape}")
-    print(f"out tensor: \n{output_data.shape}")
+    print(f"Sampled out tensor: \n{sampled_output_data.shape}")
+    print(f"Continuous out tensor: \n{cont_output_data.shape}")
