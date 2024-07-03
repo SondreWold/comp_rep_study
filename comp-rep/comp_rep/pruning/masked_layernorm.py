@@ -26,7 +26,10 @@ class MaskedLayerNorm(nn.Module, abc.ABC):
         super(MaskedLayerNorm, self).__init__()
         self.normalized_shape = normalized_shape
         self.weight = nn.Parameter(weight)
-        self.bias = nn.Parameter(bias)
+        if bias is not None:
+            self.bias = nn.Parameter(bias)
+        else:
+            self.register_parameter("bias", None)
         self.eps = eps
 
     @abc.abstractmethod
