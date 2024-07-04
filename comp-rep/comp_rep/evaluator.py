@@ -78,6 +78,7 @@ def evaluate_generation(
     targets_l = []
     predictions_l = []
     outs = []
+    model.to(DEVICE)
     with torch.no_grad():
         for (
             source_ids,
