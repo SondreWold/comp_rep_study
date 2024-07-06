@@ -8,8 +8,12 @@ from typing import Any, Literal
 import torch
 import torch.nn as nn
 
-from comp_rep.pruning.masked_layernorm import ContinuousMaskLayerNorm
-from comp_rep.pruning.masked_linear import ContinuousMaskLinear, SampledMaskLinear
+from comp_rep.pruning.masked_layernorm import ContinuousMaskLayerNorm, MaskedLayerNorm
+from comp_rep.pruning.masked_linear import (
+    ContinuousMaskLinear,
+    MaskedLinear,
+    SampledMaskLinear,
+)
 
 
 class MaskedModel(nn.Module):
@@ -124,6 +128,49 @@ class MaskedModel(nn.Module):
                 m, ContinuousMaskLayerNorm
             ):
                 m.update_temperature(new_temp)
+
+    def get_remaining_weights(self) -> float:
+        """
+        Computes the macro average remaining weights of the masked modules.
+
+        Returns:
+            float: the macro average
+        """
+        remaining = []
+        for m in self.model.modules():
+            if isinstance(m, MaskedLinear) or isinstance(m, MaskedLayerNorm):
+                remaining.append(m.compute_remaining_weights())
+        return sum(remaining) / len(remaining)
+
+    def activate_ticket(self):
+        """
+        Activates the ticket for evaluation mode in the Continuous Mask setting
+        """
+        for m in self.model.modules():
+            if isinstance(m, ContinuousMaskLinear) or isinstance(
+                m, ContinuousMaskLayerNorm
+            ):
+                m.ticket = True
+
+    def deactivate_ticket(self):
+        """
+        Deactivates the ticket for training mode in the Continuous Mask setting
+        """
+        for m in self.model.modules():
+            if isinstance(m, ContinuousMaskLinear) or isinstance(
+                m, ContinuousMaskLayerNorm
+            ):
+                m.ticket = False
+
+    def compute_l1_norm(self):
+        """
+        Gathers all the L1 Norms
+        """
+        norms = 0.0
+        for m in self.model.modules():
+            if isinstance(m, MaskedLinear) or isinstance(m, MaskedLayerNorm):
+                norms += m.compute_l1_norm(m.s_matrix)
+        return norms
 
 
 if __name__ == "__main__":

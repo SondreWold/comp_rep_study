@@ -40,9 +40,10 @@ class LitTransformer(L.LightningModule):
         return optimizer
 
     def training_step(self, train_batch, batch_idx):
-        logits, loss = get_regularized_logits_loss(
+        logits, ce, mask_loss, loss = get_regularized_logits_loss(
             self.model, self.args.mask_lambda, train_batch, F.cross_entropy
         )
+
         self.log(
             "train_loss",
             loss,
@@ -53,12 +54,22 @@ class LitTransformer(L.LightningModule):
         )
         return loss
 
+    def on_train_epoch_start(self):
+        if self.pruning_method == "continuous":
+            self.model.deactivate_ticket()
+
+    def on_validation_epoch_start(self):
+        if self.pruning_method == "continuous":
+            self.model.activate_ticket()
+
     def on_train_epoch_end(self):
         if self.pruning_method == "continuous":
             self.model.update_hyperparameters(self.temperature_increase)
+        avg_remaining_weights = self.model.get_remaining_weights()
+        self.log("avg_remaining_weights", avg_remaining_weights)
 
     def validation_step(self, val_batch, batch_idx):
-        logits, loss = get_regularized_logits_loss(
+        logits, ce, mask_loss, loss = get_regularized_logits_loss(
             self.model, self.args.mask_lambda, val_batch, F.cross_entropy
         )
         self.log(

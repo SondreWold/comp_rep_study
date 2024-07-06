@@ -77,6 +77,17 @@ class MaskedLinear(nn.Module, abc.ABC):
         """
         return torch.norm(self.compute_mask(s_matrix), p=1)
 
+    def compute_remaining_weights(self) -> float:
+        """
+        Computes and returns the percentage of remaining weights
+
+        Returns:
+            Tensor: The percentage of remaining weights
+        """
+        below_zero = float((self.s_matrix <= 0).sum())
+        original = self.s_matrix.numel()
+        return below_zero / original
+
     def extra_repr(self) -> str:
         return f"in_features={self.in_features}, out_features={self.out_features}, bias={self.bias is not None}"
 
@@ -271,6 +282,7 @@ if __name__ == "__main__":
     )
 
     cont_mask_linear = ContinuousMaskLinear(linear_layer.weight, linear_layer.bias)
+    print(isinstance(cont_mask_linear, MaskedLinear))
     print(f"Sampled masked layer: \n{sampled_mask_linear}")
     print(f"Continuous  masked layer: \n{cont_mask_linear}")
 

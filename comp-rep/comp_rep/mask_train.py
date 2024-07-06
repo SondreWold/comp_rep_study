@@ -91,7 +91,6 @@ def main(args: argparse.Namespace):
         entity="pmmon-Ludwig MaximilianUniversity of Munich",
         project="compositional_representations",
         config=config,
-        mode="disabled",
     )
     checkpoint_callback = ModelCheckpoint(
         monitor="val_loss",

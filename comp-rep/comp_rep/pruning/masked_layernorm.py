@@ -33,15 +33,35 @@ class MaskedLayerNorm(nn.Module, abc.ABC):
         self.eps = eps
 
     @abc.abstractmethod
-    def init_s_weight(self) -> Tensor:
+    def init_s_matrix(self) -> Tensor:
         pass
 
     @abc.abstractmethod
-    def compute_mask(self, s_weight) -> Tensor:
+    def compute_mask(self, s_matrix) -> Tensor:
         pass
 
-    def compute_l1_norm(self, s_weight: Tensor):
-        return torch.norm(self.compute_mask(self.s_weight), p=1)
+    def compute_l1_norm(self, s_matrix: Tensor):
+        """
+        Computes the L1 norm of the s_matrix
+
+        args:
+            s_matrix (Tensor): The s_matrix
+
+        Returns:
+            Tensor: The L1 norm
+        """
+        return torch.norm(self.compute_mask(self.s_matrix), p=1)
+
+    def compute_remaining_weights(self) -> float:
+        """
+        Computes and returns the percentage of remaining weights
+
+        Returns:
+            float: The percentage of remaining weights
+        """
+        below_zero = float((self.s_matrix <= 0).sum())
+        original = self.s_matrix.numel()
+        return below_zero / original
 
 
 class ContinuousMaskLayerNorm(MaskedLayerNorm):
@@ -60,9 +80,9 @@ class ContinuousMaskLayerNorm(MaskedLayerNorm):
         self.mask_initial_value = mask_initial_value
         self.ticket = ticket
         self.temp = 1.0
-        self.s_weight = self.init_s_weight()
+        self.s_matrix = self.init_s_matrix()
 
-    def init_s_weight(self) -> Tensor:
+    def init_s_matrix(self) -> Tensor:
         s_matrix = nn.Parameter(
             nn.init.constant_(
                 torch.Tensor(self.normalized_shape),
@@ -74,15 +94,15 @@ class ContinuousMaskLayerNorm(MaskedLayerNorm):
     def update_temperature(self, new_temp: float):
         self.temp = self.temp * new_temp
 
-    def compute_mask(self, s_weight: Tensor) -> Tensor:
+    def compute_mask(self, s_matrix: Tensor) -> Tensor:
         if self.ticket:
-            weight_mask = (s_weight > 0).float()
+            weight_mask = (s_matrix > 0).float()
         else:
-            weight_mask = F.sigmoid(self.temp * self.s_weight)
+            weight_mask = F.sigmoid(self.temp * self.s_matrix)
         return weight_mask
 
     def forward(self, x: Tensor) -> Tensor:
-        weight_mask = self.compute_mask(self.s_weight)
+        weight_mask = self.compute_mask(self.s_matrix)
         masked_weight = self.weight * weight_mask
         return F.layer_norm(x, self.normalized_shape, masked_weight)
 
@@ -106,6 +126,6 @@ if __name__ == "__main__":
 
     print(f"Continuous layer norm output: \n{output_tensor_cont}")
     print(
-        f"L1 norm: \n{cont_mask_layernorm.compute_l1_norm(cont_mask_layernorm.s_weight)}"
+        f"L1 norm: \n{cont_mask_layernorm.compute_l1_norm(cont_mask_layernorm.s_matrix)}"
     )  # should be 0
     print(f"Normal layer norm output: \n{output_tensor}")
