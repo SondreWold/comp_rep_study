@@ -25,9 +25,9 @@ class MaskedLayerNorm(nn.Module, abc.ABC):
     ):
         super(MaskedLayerNorm, self).__init__()
         self.normalized_shape = normalized_shape
-        self.weight = nn.Parameter(weight)
+        self.weight = nn.Parameter(weight, requires_grad=False)
         if bias is not None:
-            self.bias = nn.Parameter(bias)
+            self.bias = nn.Parameter(bias, requires_grad=False)
         else:
             self.register_parameter("bias", None)
         self.eps = eps
@@ -53,16 +53,13 @@ class ContinuousMaskLayerNorm(MaskedLayerNorm):
         eps: float = 1e-5,
         mask_initial_value: float = 0.0,
         ticket: bool = False,
-        temp: float = 1.0,
-        temp_step_increase=1.0,
     ):
         super(ContinuousMaskLayerNorm, self).__init__(
             normalized_shape, weight, bias, eps
         )
         self.mask_initial_value = mask_initial_value
         self.ticket = ticket
-        self.temp = temp
-        self.temp_step_increase = temp_step_increase
+        self.temp = 1.0
         self.s_weight = self.init_s_weight()
 
     def init_s_weight(self) -> Tensor:
@@ -74,12 +71,14 @@ class ContinuousMaskLayerNorm(MaskedLayerNorm):
         )
         return s_matrix
 
+    def update_temperature(self, new_temp: float):
+        self.temp = self.temp * new_temp
+
     def compute_mask(self, s_weight: Tensor) -> Tensor:
         if self.ticket:
             weight_mask = (s_weight > 0).float()
         else:
             weight_mask = F.sigmoid(self.temp * self.s_weight)
-            self.temp += self.temp_step_increase
         return weight_mask
 
     def forward(self, x: Tensor) -> Tensor:

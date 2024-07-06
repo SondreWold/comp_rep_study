@@ -29,9 +29,9 @@ class MaskedLinear(nn.Module, abc.ABC):
         """
         super(MaskedLinear, self).__init__()
         self.out_features, self.in_features = weight.shape
-        self.weight = nn.Parameter(weight)
+        self.weight = nn.Parameter(weight, requires_grad=False)
         if bias is not None:
-            self.bias = nn.Parameter(bias)
+            self.bias = nn.Parameter(bias, requires_grad=False)
         else:
             self.register_parameter("bias", None)
 
@@ -191,15 +191,17 @@ class ContinuousMaskLinear(MaskedLinear):
         bias: Optional[Tensor] = None,
         mask_initial_value: float = 0.0,
         ticket: bool = False,
-        temp: float = 1.0,
-        temp_step_increase: float = 1.0,
     ):
         super(ContinuousMaskLinear, self).__init__(weights, bias)
         self.mask_initial_value = mask_initial_value
         self.ticket = ticket  # For evaluation mode, use the actual heaviside function
-        self.temp = temp
-        self.temp_step_increase = temp_step_increase
+        self.temp = (
+            1.0  # This always start at 1 and increases to the max_temp per epoch
+        )
         self.s_matrix = self.init_s_matrix()
+
+    def update_temperature(self, new_temp: float):
+        self.temp = self.temp * new_temp
 
     def init_s_matrix(self) -> Tensor:
         """
@@ -230,7 +232,6 @@ class ContinuousMaskLinear(MaskedLinear):
             mask = (s_matrix > 0).float()
         else:
             mask = F.sigmoid(self.temp * self.s_matrix)
-            self.temp += self.temp_step_increase
         return mask
 
     def forward(self, x: Tensor) -> Tensor:

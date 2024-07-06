@@ -8,6 +8,7 @@ from typing import Any, Literal
 import torch
 import torch.nn as nn
 
+from comp_rep.pruning.masked_layernorm import ContinuousMaskLayerNorm
 from comp_rep.pruning.masked_linear import ContinuousMaskLinear, SampledMaskLinear
 
 
@@ -70,9 +71,33 @@ class MaskedModel(nn.Module):
                 else:
                     replace_linear(child)
 
-        replace_linear(self.model)
+        def replace_layernorm(module: nn.Module) -> None:
+            for name, child in module.named_children():
+                if isinstance(child, nn.LayerNorm):
+                    if pruning_method == "continuous":
+                        setattr(
+                            module,
+                            name,
+                            ContinuousMaskLayerNorm(
+                                child.normalized_shape,
+                                child.weight,
+                                child.bias,
+                                child.eps,
+                                **maskedlayer_kwargs,
+                            ),
+                        )
+                    elif pruning_method == "sampled":
+                        # TODO
+                        pass
+                    else:
+                        raise ValueError("Invalid pruning strategy method provided")
+                else:
+                    replace_layernorm(child)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        replace_linear(self.model)
+        replace_layernorm(self.model)
+
+    def forward(self, *argv) -> torch.Tensor:
         """
         Defines the forward pass of the model.
 
@@ -82,7 +107,23 @@ class MaskedModel(nn.Module):
         Returns:
             torch.Tensor: The output tensor.
         """
-        return self.model(x)
+        return self.model(*argv)
+
+    def update_hyperparameters(self, new_temp: float):
+        """
+        Updates the hyperparameters of the underlying Masked modules.
+
+        Args:
+            new_temp (float): The new temperature parameter for the continuous models, updated per epoch
+
+        Return:
+            None
+        """
+        for m in self.model.modules():
+            if isinstance(m, ContinuousMaskLinear) or isinstance(
+                m, ContinuousMaskLayerNorm
+            ):
+                m.update_temperature(new_temp)
 
 
 if __name__ == "__main__":
@@ -103,8 +144,6 @@ if __name__ == "__main__":
     cont_maskedlayer_kwargs = {
         "mask_initial_value": 1.0,
         "ticket": False,
-        "temp": 2.0,
-        "temp_step_increase": 3.68,
     }
 
     # Create a simple model
