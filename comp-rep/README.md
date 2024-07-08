@@ -45,6 +45,7 @@ python comp_rep/train.py
 ```
 
 ## Training masked models
+After having trained a base model, one can train the masked models using:
 ```
 python comp_rep/mask_train.py
 ```
