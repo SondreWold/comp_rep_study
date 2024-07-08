@@ -27,7 +27,7 @@ class Pruner:
         maskedlayer_kwargs: dict[str, Any],
     ):
         self.model = model
-        self.init_model(pruning_method, maskedlayer_kwargs)
+        self.init_model_pruning(pruning_method, maskedlayer_kwargs)
 
     def freeze_initial_model(self) -> None:
         """
@@ -36,13 +36,13 @@ class Pruner:
         for p in self.model.parameters():
             p.requires_grad = False
 
-    def init_model(
+    def init_model_pruning(
         self,
         pruning_method: Literal["continuous", "sampled"],
         maskedlayer_kwargs: dict[str, Any],
     ) -> None:
         """
-        Initializes the model by replacing linear layers with masked layers.
+        Initializes the model pruning by replacing linear layers with masked layers.
 
         Args:
             pruning_method (Literal["continuous", "sampled"]): The pruning method to deploy.

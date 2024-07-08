@@ -3,7 +3,7 @@ import torch.nn.functional as F
 
 
 def get_logits_loss(
-    pl_model: L.LightningModule,
+    pl_module: L.LightningModule,
     batch: tuple,
 ) -> tuple:
     """
@@ -17,7 +17,7 @@ def get_logits_loss(
         tuple: A tuple containing the logits and the calculated loss.
     """
     _, _, target_ids, _, _, _ = batch
-    logits = pl_model(batch)
+    logits = pl_module(batch)
 
     # Transpose output to [batch size, vocab, seq len] to match the required dims for CE.
     # Also, right shift the targets so that it matches the output order.
@@ -27,7 +27,7 @@ def get_logits_loss(
 
 
 def get_regularized_logits_loss(
-    pl_model: L.LightningModule,
+    pl_module: L.LightningModule,
     mask_lambda: float,
     batch: tuple,
 ) -> tuple:
@@ -42,8 +42,8 @@ def get_regularized_logits_loss(
     Returns:
         tuple: A tuple containing logits, cross entropy loss, mask loss, and total loss.
     """
-    logits, cross_entropy_loss = get_logits_loss(pl_model, batch)
-    norms = pl_model.model.compute_l1_norm()
+    logits, cross_entropy_loss = get_logits_loss(pl_module, batch)
+    norms = pl_module.model.compute_l1_norm()
     mask_loss = mask_lambda * norms
     loss = cross_entropy_loss + mask_loss
     return logits, cross_entropy_loss, mask_loss, loss
