@@ -59,7 +59,7 @@ class MaskedLayerNorm(nn.Module, abc.ABC):
         Returns:
             float: The percentage of remaining weights
         """
-        below_zero = float((self.s_matrix <= 0).sum())
+        below_zero = float((self.compute_mask(self.s_matrix) <= 0).sum())
         original = self.s_matrix.numel()
         return below_zero / original
 
