@@ -18,7 +18,7 @@ class MaskedLinear(nn.Module, abc.ABC):
     An abstract base class for a linear layer with a customizable mask.
     """
 
-    def __init__(self, weight: Tensor, bias: Tensor | None = None):
+    def __init__(self, weight: Tensor, bias: Optional[Tensor] = None):
         """
         Initializes the MaskedLinear layer.
 
