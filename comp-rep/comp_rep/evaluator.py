@@ -4,9 +4,17 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
-from dataset import EOS_TOKEN, PAD_TOKEN, SOS_TOKEN, Lang, SequenceDataset
+from dataset import (
+    EOS_TOKEN,
+    PAD_TOKEN,
+    SOS_TOKEN,
+    CollateFunctor,
+    Lang,
+    SequenceDataset,
+)
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from utils import load_tokenizer
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -14,8 +22,11 @@ DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser("Evaluation script")
     parser.add_argument("--eval_data_path", type=Path)
+    parser.add_argument("--eval_batch_size", type=int, default=32)
     parser.add_argument("--model_path", type=Path)
-    parser.add_argument("--epochs", type=int, default=5)
+    parser.add_argument("--tokenizer_path", type=Path)
+    parser.add_argument("--is_masked", action="store_true")
+    parser.add_argument("--predictions_path", type=Path)
     return parser.parse_args()
 
 
@@ -119,7 +130,32 @@ def main(args: argparse.Namespace) -> None:
     config = vars(args).copy()
     config_string = "\n".join([f"--{k}: {v}" for k, v in config.items()])
     logging.info(f"\nRunning evaluation with the config: \n{config_string}")
-    # TODO: When run as a stand alone, this requires first implementing saving/loading
+    if args.is_masked:
+        from masked_lightning_models import LitTransformer
+    else:
+        from lightning_models import LitTransformer
+    tokenizer = load_tokenizer(args.tokenizer_path)
+    eval_dataset = SequenceDataset(args.eval_data_path, tokenizer=tokenizer)
+    input_vocabulary_size = len(tokenizer["input_language"]["index2word"])
+    output_vocabulary_size = len(tokenizer["output_language"]["index2word"])
+    args.input_vocabulary_size = input_vocabulary_size
+    args.output_vocabulary_size = output_vocabulary_size
+    eval_loader = DataLoader(
+        eval_dataset,
+        batch_size=args.eval_batch_size,
+        collate_fn=CollateFunctor(),
+        shuffle=False,
+        num_workers=7,
+        persistent_workers=True,
+    )
+
+    model = LitTransformer.load_from_checkpoint(args.model_path)
+    searcher = GreedySearch(model.model, eval_dataset.output_language)
+    accuracy = evaluate_generation(
+        model.model, searcher, eval_loader, args.predictions_path
+    )
+
+    logging.info(f"Final accuracy was: {accuracy}")
 
 
 if __name__ == "__main__":
