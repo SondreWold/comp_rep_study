@@ -8,7 +8,12 @@ from typing import Any, Literal
 import torch
 import torch.nn as nn
 
-from comp_rep.pruning.masked_linear import ContinuousMaskLinear, SampledMaskLinear
+from comp_rep.pruning.masked_layernorm import ContinuousMaskLayerNorm, MaskedLayerNorm
+from comp_rep.pruning.masked_linear import (
+    ContinuousMaskLinear,
+    MaskedLinear,
+    SampledMaskLinear,
+)
 
 
 class MaskedModel(nn.Module):
@@ -24,6 +29,9 @@ class MaskedModel(nn.Module):
     ):
         super(MaskedModel, self).__init__()
         self.model = deepcopy(model)
+        if pruning_method == "continuous":
+            self.temperature_increase = maskedlayer_kwargs["temperature_increase"]
+            del maskedlayer_kwargs["temperature_increase"]
         self.init_model(maskedlayer_kwargs, pruning_method)
 
     def freeze_initial_model(self) -> None:
@@ -70,9 +78,33 @@ class MaskedModel(nn.Module):
                 else:
                     replace_linear(child)
 
-        replace_linear(self.model)
+        def replace_layernorm(module: nn.Module) -> None:
+            for name, child in module.named_children():
+                if isinstance(child, nn.LayerNorm):
+                    if pruning_method == "continuous":
+                        setattr(
+                            module,
+                            name,
+                            ContinuousMaskLayerNorm(
+                                child.normalized_shape,
+                                child.weight,
+                                child.bias,
+                                child.eps,
+                                **maskedlayer_kwargs,
+                            ),
+                        )
+                    elif pruning_method == "sampled":
+                        # TODO
+                        pass
+                    else:
+                        raise ValueError("Invalid pruning strategy method provided")
+                else:
+                    replace_layernorm(child)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        replace_linear(self.model)
+        replace_layernorm(self.model)
+
+    def forward(self, *argv) -> torch.Tensor:
         """
         Defines the forward pass of the model.
 
@@ -82,7 +114,63 @@ class MaskedModel(nn.Module):
         Returns:
             torch.Tensor: The output tensor.
         """
-        return self.model(x)
+        return self.model(*argv)
+
+    def update_hyperparameters(self):
+        """
+        Updates the hyperparameters of the underlying Masked modules.
+
+        Return:
+            None
+        """
+        for m in self.model.modules():
+            if isinstance(m, ContinuousMaskLinear) or isinstance(
+                m, ContinuousMaskLayerNorm
+            ):
+                m.update_temperature(self.temperature_increase)
+
+    def get_remaining_weights(self) -> float:
+        """
+        Computes the macro average remaining weights of the masked modules.
+
+        Returns:
+            float: the macro average
+        """
+        remaining = []
+        for m in self.model.modules():
+            if isinstance(m, MaskedLinear) or isinstance(m, MaskedLayerNorm):
+                remaining.append(m.compute_remaining_weights())
+        return sum(remaining) / len(remaining)
+
+    def activate_ticket(self):
+        """
+        Activates the ticket for evaluation mode in the Continuous Mask setting
+        """
+        for m in self.model.modules():
+            if isinstance(m, ContinuousMaskLinear) or isinstance(
+                m, ContinuousMaskLayerNorm
+            ):
+                m.ticket = True
+
+    def deactivate_ticket(self):
+        """
+        Deactivates the ticket for training mode in the Continuous Mask setting
+        """
+        for m in self.model.modules():
+            if isinstance(m, ContinuousMaskLinear) or isinstance(
+                m, ContinuousMaskLayerNorm
+            ):
+                m.ticket = False
+
+    def compute_l1_norm(self):
+        """
+        Gathers all the L1 Norms
+        """
+        norms = 0.0
+        for m in self.model.modules():
+            if isinstance(m, MaskedLinear) or isinstance(m, MaskedLayerNorm):
+                norms += m.compute_l1_norm(m.s_matrix)
+        return norms
 
 
 if __name__ == "__main__":
@@ -103,8 +191,6 @@ if __name__ == "__main__":
     cont_maskedlayer_kwargs = {
         "mask_initial_value": 1.0,
         "ticket": False,
-        "temp": 2.0,
-        "temp_step_increase": 3.68,
     }
 
     # Create a simple model
