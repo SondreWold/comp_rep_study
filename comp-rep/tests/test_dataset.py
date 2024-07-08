@@ -2,7 +2,7 @@ import pytest
 import torch
 from torch.utils.data import DataLoader
 
-from comp_rep.dataset import (
+from comp_rep.data_prep.dataset import (
     EOS_TOKEN,
     PAD_TOKEN,
     SOS_TOKEN,

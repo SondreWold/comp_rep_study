@@ -201,18 +201,21 @@ class ContinuousMaskLinear(MaskedLinear):
         weights: Tensor,
         bias: Optional[Tensor] = None,
         mask_initial_value: float = 0.0,
+        temperature_increase: float = 1.0,
         ticket: bool = False,
     ):
         super(ContinuousMaskLinear, self).__init__(weights, bias)
         self.mask_initial_value = mask_initial_value
+        self.temp = 1.0  # Always starts at 1 and increases to the max_temp
+        self.temperature_increase = temperature_increase
         self.ticket = ticket  # For evaluation mode, use the actual heaviside function
-        self.temp = (
-            1.0  # This always start at 1 and increases to the max_temp per epoch
-        )
         self.s_matrix = self.init_s_matrix()
 
-    def update_temperature(self, new_temp: float):
-        self.temp = self.temp * new_temp
+    def update_temperature(self) -> None:
+        """
+        Updates the temperature.
+        """
+        self.temp = self.temp * self.temperature_increase
 
     def init_s_matrix(self) -> Tensor:
         """

@@ -2,7 +2,6 @@
 Modules to find subnetworks via model pruning
 """
 
-from copy import deepcopy
 from typing import Any, Literal
 
 import torch
@@ -16,7 +15,7 @@ from comp_rep.pruning.masked_linear import (
 )
 
 
-class MaskedModel(nn.Module):
+class Pruner:
     """
     A model wrapper that applies a masking strategy for model pruning.
     """
@@ -27,12 +26,8 @@ class MaskedModel(nn.Module):
         pruning_method: Literal["continuous", "sampled"],
         maskedlayer_kwargs: dict[str, Any],
     ):
-        super(MaskedModel, self).__init__()
-        self.model = deepcopy(model)
-        if pruning_method == "continuous":
-            self.temperature_increase = maskedlayer_kwargs["temperature_increase"]
-            del maskedlayer_kwargs["temperature_increase"]
-        self.init_model(maskedlayer_kwargs, pruning_method)
+        self.model = model
+        self.init_model(pruning_method, maskedlayer_kwargs)
 
     def freeze_initial_model(self) -> None:
         """
@@ -43,13 +38,14 @@ class MaskedModel(nn.Module):
 
     def init_model(
         self,
-        maskedlayer_kwargs: dict[str, Any],
         pruning_method: Literal["continuous", "sampled"],
+        maskedlayer_kwargs: dict[str, Any],
     ) -> None:
         """
         Initializes the model by replacing linear layers with masked layers.
 
         Args:
+            pruning_method (Literal["continuous", "sampled"]): The pruning method to deploy.
             maskedlayer_kwargs (dict[str, Any]): Additional keyword-arguments for the masked layer.
         """
         self.freeze_initial_model()
@@ -104,18 +100,6 @@ class MaskedModel(nn.Module):
         replace_linear(self.model)
         replace_layernorm(self.model)
 
-    def forward(self, *argv) -> torch.Tensor:
-        """
-        Defines the forward pass of the model.
-
-        Args:
-            x (torch.Tensor): The input tensor.
-
-        Returns:
-            torch.Tensor: The output tensor.
-        """
-        return self.model(*argv)
-
     def update_hyperparameters(self):
         """
         Updates the hyperparameters of the underlying Masked modules.
@@ -127,7 +111,7 @@ class MaskedModel(nn.Module):
             if isinstance(m, ContinuousMaskLinear) or isinstance(
                 m, ContinuousMaskLayerNorm
             ):
-                m.update_temperature(self.temperature_increase)
+                m.update_temperature()
 
     def get_remaining_weights(self) -> float:
         """
@@ -196,22 +180,26 @@ if __name__ == "__main__":
     # Create a simple model
     model = SimpleModel()
     print(f"Toy model: \n{model}")
-    sampled_masked_model = MaskedModel(
+
+    sampled_masked_model = Pruner(
         model, pruning_method="sampled", maskedlayer_kwargs=sampled_maskedlayer_kwargs
     )
-    cont_masked_model = MaskedModel(
-        model, pruning_method="continuous", maskedlayer_kwargs=cont_maskedlayer_kwargs
-    )
-
-    print(f"Toy model: \n{model}")
-    print(f"Sampled Masked model: \n{sampled_masked_model}")
-    print(f"Continuous Masked model: \n{cont_masked_model}")
+    print(f"Sampled Masked model: \n{model}")
 
     # Create dummy input data
     input_data = torch.randn(18, 10)
-    sampled_output_data = sampled_masked_model(input_data)
-    cont_output_data = cont_masked_model(input_data)
-
+    sampled_output_data = model(input_data)
     print(f"in tensor: \n{input_data.shape}")
     print(f"Sampled out tensor: \n{sampled_output_data.shape}")
+
+    model = SimpleModel()
+    print(f"Toy model: \n{model}")
+
+    cont_masked_model = Pruner(
+        model, pruning_method="continuous", maskedlayer_kwargs=cont_maskedlayer_kwargs
+    )
+    print(f"Continuous Masked model: \n{model}")
+
+    cont_output_data = model(input_data)
+    print(f"in tensor: \n{input_data.shape}")
     print(f"Continuous out tensor: \n{cont_output_data.shape}")

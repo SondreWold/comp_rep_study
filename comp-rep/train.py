@@ -1,28 +1,53 @@
+"""
+Train encoder-decoder Transformer model on full dataset.
+"""
+
 import argparse
 import logging
 from pathlib import Path
 
 import lightning as L
-from dataset import CollateFunctor, SequenceDataset
-from evaluator import GreedySearch, evaluate_generation
+import torch
+import wandb
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
-from lightning_models import LitTransformer
 from torch.utils.data import DataLoader
-from utils import (
+
+from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
+from comp_rep.eval.decoding import GreedySearch
+from comp_rep.eval.evaluator import evaluate_generation
+from comp_rep.models.lightning_models import LitTransformer
+from comp_rep.utils import (
     ValidatePredictionPath,
     ValidateSavePath,
     create_tokenizer_dict,
     save_tokenizer,
     set_seed,
+    setup_logging,
     validate_args,
 )
 
-import wandb
+DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser("Training script")
+    """
+    Parses the command line arguments.
+
+    Returns:
+        argparse.Namespace: An object containing the parsed command line arguments.
+    """
+    parser = argparse.ArgumentParser(
+        "Full Encoder-Decoder Transformer training script."
+    )
+
+    parser.add_argument(
+        "--verbose",
+        type=int,
+        default=1,
+        choices=[0, 1, 2],
+        help="Verbose mode (0: WARNING, 1: INFO, 2: DEBUG)",
+    )
     parser.add_argument("--train_data_path", type=Path)
     parser.add_argument("--val_data_path", type=Path)
     parser.add_argument(
@@ -46,15 +71,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--seed", type=int, default=1860)
     parser.add_argument("--eval", action="store_true")
+
     return parser.parse_args()
 
 
-def main(args: argparse.Namespace):
+def main() -> None:
+    args = parse_args()
     validate_args(args)
+
     set_seed(args.seed)
+    setup_logging(args.verbose)
     config = vars(args).copy()
     config_string = "\n".join([f"--{k}: {v}" for k, v in config.items()])
     logging.info(f"\nRunning training loop with the config: \n{config_string}")
+
+    wandb_logger = WandbLogger(
+        entity="pmmon-Ludwig MaximilianUniversity of Munich",
+        project="compositional_representations",
+        config=config,
+    )
+
+    # load data
     train_dataset = SequenceDataset(args.train_data_path)
     train_tokenizer = create_tokenizer_dict(
         train_dataset.input_language, train_dataset.output_language
@@ -64,6 +101,7 @@ def main(args: argparse.Namespace):
     args.input_vocabulary_size = input_vocabulary_size
     args.output_vocabulary_size = output_vocabulary_size
     val_dataset = SequenceDataset(args.val_data_path, tokenizer=train_tokenizer)
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=args.train_batch_size,
@@ -80,12 +118,9 @@ def main(args: argparse.Namespace):
         num_workers=7,
         persistent_workers=True,
     )
-    model = LitTransformer(args)
-    wandb_logger = WandbLogger(
-        entity="pmmon-Ludwig MaximilianUniversity of Munich",
-        project="compositional_representations",
-        config=config,
-    )
+
+    # init model
+    pl_transformer = LitTransformer(args)
     checkpoint_callback = ModelCheckpoint(
         monitor="val_loss",
         dirpath=args.save_path,
@@ -93,26 +128,29 @@ def main(args: argparse.Namespace):
         save_top_k=1,
         mode="min",
     )
+
+    # train model
     trainer = L.Trainer(
         callbacks=[checkpoint_callback], max_epochs=args.epochs, logger=wandb_logger
     )
-    trainer.fit(model, train_loader, val_loader)
+    trainer.fit(pl_transformer, train_loader, val_loader)
     save_tokenizer(args.save_path, train_tokenizer)
 
+    # evaluate
     if args.eval:
-        searcher = GreedySearch(model.model, val_dataset.output_language)
+        searcher = GreedySearch(pl_transformer.model, val_dataset.output_language)
         accuracy = evaluate_generation(
-            model.model, searcher, val_loader, args.predictions_path
+            pl_transformer.model,
+            searcher,
+            val_loader,
+            args.predictions_path,
+            device=DEVICE,
         )
         logging.info(f"Final accuracy was: {accuracy}")
         wandb.log({"final_accuracy": accuracy})  # type: ignore[attr-defined]
+
     wandb.finish()  # type: ignore[attr-defined]
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-        datefmt="%m/%d/%Y %H:%M:%S",
-        level=logging.INFO,
-    )
-    main(parse_args())
+    main()
