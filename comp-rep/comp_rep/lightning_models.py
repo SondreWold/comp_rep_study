@@ -1,7 +1,6 @@
 import argparse
 
 import lightning as L
-import torch.nn.functional as F
 import torch.optim as optim
 from loss import get_logits_loss
 from model import Transformer
@@ -33,7 +32,7 @@ class LitTransformer(L.LightningModule):
         return optimizer
 
     def training_step(self, train_batch, batch_idx):
-        logits, loss = get_logits_loss(self.model, train_batch, F.cross_entropy)
+        logits, loss = get_logits_loss(self, train_batch)
         self.log(
             "train_loss",
             loss,
@@ -45,7 +44,7 @@ class LitTransformer(L.LightningModule):
         return loss
 
     def validation_step(self, val_batch, batch_idx):
-        logits, loss = get_logits_loss(self.model, val_batch, F.cross_entropy)
+        logits, loss = get_logits_loss(self, val_batch)
         self.log(
             "val_loss",
             loss,

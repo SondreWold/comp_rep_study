@@ -2,7 +2,6 @@ import argparse
 from typing import Any
 
 import lightning as L
-import torch.nn.functional as F
 import torch.optim as optim
 from loss import get_regularized_logits_loss
 from model import Transformer
@@ -43,7 +42,7 @@ class LitTransformer(L.LightningModule):
 
     def training_step(self, train_batch, batch_idx):
         logits, ce, mask_loss, loss = get_regularized_logits_loss(
-            self.model, self.args.mask_lambda, train_batch, F.cross_entropy
+            self, self.args.mask_lambda, train_batch
         )
 
         self.log(
@@ -72,7 +71,7 @@ class LitTransformer(L.LightningModule):
 
     def validation_step(self, val_batch, batch_idx):
         logits, ce, mask_loss, loss = get_regularized_logits_loss(
-            self.model, self.args.mask_lambda, val_batch, F.cross_entropy
+            self, self.args.mask_lambda, val_batch
         )
         self.log(
             "val_loss",
