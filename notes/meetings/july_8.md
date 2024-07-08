@@ -3,6 +3,7 @@ Note from our meeting on 8th of July 2024.
 
 ## Immediate Next Steps
 The following steps should be done next:
+- Ensure that data generation scripts are available
 - Evaluate our trained masks (`ContinuousMask` and `SampledMask`)
   - First validate the initial frozen model on the `Append` validation set (get accuracy)
   - Validate mask training on whole dataset
