@@ -47,7 +47,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--layers", type=int, default=6)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--mask_lambda", type=float, default=1e-7)
+    parser.add_argument("--mask_initial_value", type=float, default=0.05)
+    parser.add_argument("--tau", type=float, default=1.0)
     parser.add_argument("--max_temp", type=int, default=200)
+    parser.add_argument("--num_masks", type=int, default=4)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--seed", type=int, default=1860)
@@ -86,6 +89,13 @@ def main(args: argparse.Namespace):
     )
     model = LitTransformer.load_from_checkpoint(args.pretrained_model_path, args=args)
     pruning_methods_kwargs: dict[str, Any] = {}
+    if args.pruning_method == "continuous":
+        pruning_methods_kwargs["mask_initial_value"] = args.mask_initial_value
+    elif args.pruning_method == "sampled":
+        pruning_methods_kwargs["tau"] = args.tau
+        pruning_methods_kwargs["num_masks"] = args.num_masks
+    else:
+        raise ValueError("Invalid pruning strategy method provided")
     model.init_mask_model(args.pruning_method, pruning_methods_kwargs)
     wandb_logger = WandbLogger(
         entity="pmmon-Ludwig MaximilianUniversity of Munich",
