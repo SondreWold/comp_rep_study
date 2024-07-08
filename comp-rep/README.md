@@ -43,14 +43,16 @@ To train a base model on the full task, one can run the following:
 ```
 python comp_rep/train.py
 ```
-
+For an example, see `example_runs/train_base_model.sh`
 ## Training masked models
 After having trained a base model, one can train the masked models using:
 ```
 python comp_rep/mask_train.py
 ```
 
-## License
+For an example, see `example_runs/train_mask_model.sh`
+
+# License
 ![License: CC BY-SA 4.0](https://img.shields.io/badge/License-CC%20BY--SA%204.0-lightgrey.svg)
 
 
