@@ -29,6 +29,9 @@ class MaskedModel(nn.Module):
     ):
         super(MaskedModel, self).__init__()
         self.model = deepcopy(model)
+        if pruning_method == "continuous":
+            self.temperature_increase = maskedlayer_kwargs["temperature_increase"]
+            del maskedlayer_kwargs["temperature_increase"]
         self.init_model(maskedlayer_kwargs, pruning_method)
 
     def freeze_initial_model(self) -> None:
@@ -113,12 +116,9 @@ class MaskedModel(nn.Module):
         """
         return self.model(*argv)
 
-    def update_hyperparameters(self, new_temp: float):
+    def update_hyperparameters(self):
         """
         Updates the hyperparameters of the underlying Masked modules.
-
-        Args:
-            new_temp (float): The new temperature parameter for the continuous models, updated per epoch
 
         Return:
             None
@@ -127,7 +127,7 @@ class MaskedModel(nn.Module):
             if isinstance(m, ContinuousMaskLinear) or isinstance(
                 m, ContinuousMaskLayerNorm
             ):
-                m.update_temperature(new_temp)
+                m.update_temperature(self.temperature_increase)
 
     def get_remaining_weights(self) -> float:
         """

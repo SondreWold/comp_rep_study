@@ -25,7 +25,8 @@ class LitTransformer(L.LightningModule):
     def init_mask_model(self, pruning_method: str, maskedlayer_kwargs: dict[str, Any]):
         self.pruning_method = pruning_method
         if self.pruning_method == "continuous":
-            self.temperature_increase = self.args.max_temp ** (1.0 / self.args.epochs)
+            temperature_increase = self.args.max_temp ** (1.0 / self.args.epochs)
+            maskedlayer_kwargs["temperature_increase"] = temperature_increase
         self.model = MaskedModel(self.model, pruning_method, maskedlayer_kwargs)
 
     def forward(self, batch):
@@ -65,7 +66,7 @@ class LitTransformer(L.LightningModule):
 
     def on_train_epoch_end(self):
         if self.pruning_method == "continuous":
-            self.model.update_hyperparameters(self.temperature_increase)
+            self.model.update_hyperparameters()
         avg_remaining_weights = self.model.get_remaining_weights()
         self.log("avg_remaining_weights", avg_remaining_weights)
 
