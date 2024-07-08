@@ -35,13 +35,21 @@ def parse_args() -> argparse.Namespace:
         choices=[0, 1, 2],
         help="Verbose mode (0: WARNING, 1: INFO, 2: DEBUG)",
     )
-    parser.add_argument("--eval_data_path", type=Path)
-    parser.add_argument("--eval_batch_size", type=int, default=32)
-    parser.add_argument("--model_path", type=Path)
-    parser.add_argument("--tokenizer_path", type=Path)
-    parser.add_argument("--is_masked", action="store_true")
-    parser.add_argument("--pruning_method", type=str, default="continuous")
-    parser.add_argument("--predictions_path", type=Path)
+    parser.add_argument(
+        "--eval_data_path", type=Path, help="Path to evaluation dataset."
+    )
+    parser.add_argument("--eval_batch_size", type=int, default=32, help="Batch size.")
+    parser.add_argument("--model_path", type=Path, help="Path to model checkpoint.")
+    parser.add_argument("--tokenizer_path", type=Path, help="Path to tokenizer.")
+    parser.add_argument(
+        "--is_masked", action="store_true", help="Whether the model is pruned."
+    )
+    parser.add_argument(
+        "--pruning_method", type=str, default="continuous", help="Pruning method."
+    )
+    parser.add_argument(
+        "--predictions_path", type=Path, help="Output path for model predictions."
+    )
 
     return parser.parse_args()
 

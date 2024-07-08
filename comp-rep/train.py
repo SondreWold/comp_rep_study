@@ -48,8 +48,12 @@ def parse_args() -> argparse.Namespace:
         choices=[0, 1, 2],
         help="Verbose mode (0: WARNING, 1: INFO, 2: DEBUG)",
     )
-    parser.add_argument("--train_data_path", type=Path)
-    parser.add_argument("--val_data_path", type=Path)
+    parser.add_argument(
+        "--train_data_path", type=Path, help="Path to training dataset."
+    )
+    parser.add_argument(
+        "--val_data_path", type=Path, help="Path to validation dataset."
+    )
     parser.add_argument(
         "--save_path",
         action=ValidateSavePath,
@@ -62,15 +66,25 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Path to save predictions at",
     )
-    parser.add_argument("--train_batch_size", type=int, default=64)
-    parser.add_argument("--val_batch_size", type=int, default=32)
-    parser.add_argument("--hidden_size", type=int, default=512)
-    parser.add_argument("--layers", type=int, default=2)
-    parser.add_argument("--dropout", type=float, default=0.1)
-    parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--epochs", type=int, default=5)
-    parser.add_argument("--seed", type=int, default=1860)
-    parser.add_argument("--eval", action="store_true")
+    parser.add_argument(
+        "--train_batch_size", type=int, default=64, help="Training batch size."
+    )
+    parser.add_argument(
+        "--val_batch_size", type=int, default=32, help="Validation batch size."
+    )
+    parser.add_argument(
+        "--hidden_size", type=int, default=512, help="Size of hidden dimension."
+    )
+    parser.add_argument("--layers", type=int, default=2, help="Number of layers.")
+    parser.add_argument("--dropout", type=float, default=0.1, help="Dropout parameter.")
+    parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate.")
+    parser.add_argument("--epochs", type=int, default=5, help="Number of epochs.")
+    parser.add_argument("--seed", type=int, default=1860, help="Random seed.")
+    parser.add_argument(
+        "--eval",
+        action="store_true",
+        help="Whether to evaluate the model in addition to training.",
+    )
 
     return parser.parse_args()
 
