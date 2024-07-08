@@ -107,7 +107,7 @@ def main(args: argparse.Namespace):
         save_tokenizer(args.save_path, train_tokenizer)
 
     if args.eval:
-        searcher = GreedySearch(model.model, val_dataset.output_language)
+        searcher = GreedySearch(model.model.model, val_dataset.output_language)
         accuracy = evaluate_generation(
             model.model, searcher, val_loader, args.predictions_path
         )

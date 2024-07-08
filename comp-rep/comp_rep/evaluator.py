@@ -26,6 +26,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model_path", type=Path)
     parser.add_argument("--tokenizer_path", type=Path)
     parser.add_argument("--is_masked", action="store_true")
+    parser.add_argument("--pruning_method", type=str, default="continuous")
     parser.add_argument("--predictions_path", type=Path)
     return parser.parse_args()
 
@@ -150,7 +151,13 @@ def main(args: argparse.Namespace) -> None:
     )
 
     model = LitTransformer.load_from_checkpoint(args.model_path)
-    searcher = GreedySearch(model.model, eval_dataset.output_language)
+    if args.is_masked:
+        m = model.model.model
+        if args.pruning_method == "continuous":
+            model.model.activate_ticket()
+    else:
+        m = model.model
+    searcher = GreedySearch(m, eval_dataset.output_language)
     accuracy = evaluate_generation(
         model.model, searcher, eval_loader, args.predictions_path
     )
