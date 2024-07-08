@@ -10,6 +10,7 @@ from model import Transformer
 class LitTransformer(L.LightningModule):
     def __init__(self, args: argparse.Namespace):
         super().__init__()
+        self.save_hyperparameters()
         self.args = args
         self.model = Transformer(
             input_vocabulary_size=self.args.input_vocabulary_size,
