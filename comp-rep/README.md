@@ -37,6 +37,18 @@ poetry shell                            # Activate virtual environment
 deactivate
 ```
 
+## Training base models
+
+To train a base model on the full task, one can run the following:
+```
+python comp_rep/train.py
+```
+
+## Training masked models
+```
+python comp_rep/mask_train.py
+```
+
 ## License
 ![License: CC BY-SA 4.0](https://img.shields.io/badge/License-CC%20BY--SA%204.0-lightgrey.svg)
 
