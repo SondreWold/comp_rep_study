@@ -63,7 +63,7 @@ class MaskedLayerNorm(nn.Module, abc.ABC):
         """
         below_zero = float((self.compute_mask(self.s_matrix) <= 0).sum())
         original = self.s_matrix.numel()
-        return below_zero / original
+        return 1 - below_zero / original
 
     @abc.abstractmethod
     def extra_repr(self) -> str:
