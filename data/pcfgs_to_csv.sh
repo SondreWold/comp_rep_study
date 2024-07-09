@@ -1,4 +1,4 @@
-# Example use: pcfgs_to_tsv.sh PCFGS/pcfgset/train.src pcfgs_to_tsv.sh PCFGS/pcfgset/train.tgt train.csv
+# Example use: pcfgs_to_csv.sh PCFGS/pcfgset/train.src PCFGS/pcfgset/train.tgt train.csv
 src_file=$1
 tgt_file=$2
 save_path=$3

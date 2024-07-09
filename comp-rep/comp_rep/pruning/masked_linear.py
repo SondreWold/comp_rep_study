@@ -86,7 +86,7 @@ class MaskedLinear(nn.Module, abc.ABC):
         """
         below_zero = float((self.compute_mask(self.s_matrix) <= 0).sum())
         original = self.s_matrix.numel()
-        return below_zero / original
+        return 1 - below_zero / original
 
     def extra_repr(self) -> str:
         return f"in_features={self.in_features}, out_features={self.out_features}, bias={self.bias is not None}"
