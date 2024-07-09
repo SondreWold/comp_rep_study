@@ -5,11 +5,11 @@ from typing import Any
 
 import lightning as L
 import torch
-import wandb
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
+import wandb
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
 from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.evaluator import evaluate_generation
@@ -84,6 +84,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--layers", type=int, default=6, help="Number of layers.")
     parser.add_argument("--dropout", type=float, default=0.1, help="Dropout parameter.")
+    parser.add_argument("--num_masks", type=int, default=4)
+    parser.add_argument("--tau", type=float, default=1.0)
+    parser.add_argument("--mask_initial_value", type=float, default=0.05)
     parser.add_argument(
         "--mask_lambda",
         type=float,
@@ -161,8 +164,12 @@ def main() -> None:
         pruning_methods_kwargs["temperature_increase"] = args.max_temp ** (
             1.0 / args.epochs
         )
+        pruning_methods_kwargs["mask_initial_value"] = args.mask_initial_value
     elif args.pruning_method == "sampled":
-        pass
+        pruning_methods_kwargs["tau"] = args.tau
+        pruning_methods_kwargs["num_masks"] = args.num_masks
+    else:
+        raise ValueError("Invalid pruning strategy method provided")
 
     pl_pruned_model = LitPrunedModel(
         args=args,
