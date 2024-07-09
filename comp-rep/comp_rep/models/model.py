@@ -1,3 +1,7 @@
+"""
+The transformer model.
+"""
+
 import math
 
 import torch

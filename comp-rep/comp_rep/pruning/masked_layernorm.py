@@ -3,7 +3,7 @@ Masked layer norm layers for model pruning.
 """
 
 import abc
-from typing import List, Optional
+from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -18,7 +18,7 @@ class MaskedLayerNorm(nn.Module, abc.ABC):
 
     def __init__(
         self,
-        normalized_shape: List[int],
+        normalized_shape: Tuple[int, ...],
         weight: Tensor,
         bias: Optional[Tensor],
         eps: float = 1e-5,
@@ -67,22 +67,30 @@ class MaskedLayerNorm(nn.Module, abc.ABC):
 class ContinuousMaskLayerNorm(MaskedLayerNorm):
     def __init__(
         self,
-        normalized_shape: List[int],
+        normalized_shape: Tuple[int, ...],
         weight: Tensor,
         bias: Optional[Tensor],
         eps: float = 1e-5,
         mask_initial_value: float = 0.0,
+        temperature_increase: float = 1.0,
         ticket: bool = False,
     ):
         super(ContinuousMaskLayerNorm, self).__init__(
             normalized_shape, weight, bias, eps
         )
         self.mask_initial_value = mask_initial_value
-        self.ticket = ticket
         self.temp = 1.0
+        self.temperature_increase = temperature_increase
+        self.ticket = ticket
         self.s_matrix = self.init_s_matrix()
 
     def init_s_matrix(self) -> Tensor:
+        """
+        Initializes the s_matrix with constant values.
+
+        Returns:
+            Tensor: The s_matrix.
+        """
         s_matrix = nn.Parameter(
             nn.init.constant_(
                 torch.Tensor(self.normalized_shape),
@@ -91,10 +99,22 @@ class ContinuousMaskLayerNorm(MaskedLayerNorm):
         )
         return s_matrix
 
-    def update_temperature(self, new_temp: float):
-        self.temp = self.temp * new_temp
+    def update_temperature(self):
+        """
+        Updates the temperature.
+        """
+        self.temp = self.temp * self.temperature_increase
 
     def compute_mask(self, s_matrix: Tensor) -> Tensor:
+        """
+        Compute the mask.
+
+        Args:
+            s_matrix (Tensor): The current s_matrix.
+
+        Returns:
+            Tensor: The computed mask.
+        """
         if self.ticket:
             weight_mask = (s_matrix > 0).float()
         else:
@@ -102,6 +122,15 @@ class ContinuousMaskLayerNorm(MaskedLayerNorm):
         return weight_mask
 
     def forward(self, x: Tensor) -> Tensor:
+        """
+        Compute the forward pass of the layer.
+
+        Args:
+            x (Tensor): The input tensor.
+
+        Returns:
+            Tensor: The output tensor after applying layer normalization with a masked weight.
+        """
         weight_mask = self.compute_mask(self.s_matrix)
         masked_weight = self.weight * weight_mask
         return F.layer_norm(x, self.normalized_shape, masked_weight)
