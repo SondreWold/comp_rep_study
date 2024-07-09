@@ -14,7 +14,7 @@ from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.evaluator import evaluate_generation
 from comp_rep.models.lightning_models import LitTransformer
 from comp_rep.models.lightning_pruned_models import LitPrunedModel
-from comp_rep.utils import load_tokenizer, set_seed, setup_logging, validate_args
+from comp_rep.utils import load_tokenizer, setup_logging
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -71,9 +71,7 @@ def load_eval_data(path: Path, tokenizer: dict) -> SequenceDataset:
 
 def main() -> None:
     args = parse_args()
-    validate_args(args)
 
-    set_seed(args.seed)
     setup_logging(args.verbose)
     config = vars(args).copy()
     config_string = "\n".join([f"--{k}: {v}" for k, v in config.items()])
