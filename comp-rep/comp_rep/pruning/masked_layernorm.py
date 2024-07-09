@@ -158,9 +158,12 @@ class SampledMaskLayerNorm(MaskedLayerNorm):
         Returns:
             Tensor: The output tensor.
         """
+        masks = self.compute_mask(self.s_matrix)
+        masked_weight = self.weight.unsqueeze(0) * masks
+
         mu = x.mean(-1, keepdim=True)
         std = x.std(-1, keepdim=True)
-        frac = batch_const_mul((x - mu) / (std + self.eps), self.weight)
+        frac = batch_const_mul((x - mu) / (std + self.eps), masked_weight)
 
         if self.bias is not None:
             return batch_bias_add(frac, self.bias)
