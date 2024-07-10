@@ -1,5 +1,10 @@
+"""
+Model pruning script.
+"""
+
 import argparse
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -16,16 +21,21 @@ from comp_rep.eval.evaluator import evaluate_generation
 from comp_rep.models.lightning_models import LitTransformer
 from comp_rep.models.lightning_pruned_models import LitPrunedModel
 from comp_rep.utils import (
-    ValidatePredictionPath,
     ValidateSavePath,
+    ValidateWandbPath,
     load_tokenizer,
     save_tokenizer,
     set_seed,
     setup_logging,
-    validate_args,
 )
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
+
+CURR_FILE_PATH = Path(__file__).resolve()
+CURR_FILE_DIR = CURR_FILE_PATH.parent
+DATA_DIR = CURR_FILE_PATH.parents[1] / "data"
+SWEEP_DIR = CURR_FILE_DIR / "sweeps"
+RESULT_DIR = CURR_FILE_DIR / "predictions"
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,26 +55,38 @@ def parse_args() -> argparse.Namespace:
         help="Verbose mode (0: WARNING, 1: INFO, 2: DEBUG)",
     )
     parser.add_argument(
-        "--train_mask_path", type=Path, help="Path to training dataset of subtask data."
-    )
-    parser.add_argument(
-        "--val_mask_path", type=Path, help="Path to validation dataset of subtask data."
-    )
-    parser.add_argument(
-        "--pretrained_model_path", type=Path, help="Path to pre-trained model."
-    )
-    parser.add_argument("--tokenizer_path", type=Path, help="Path to tokenizer.")
-    parser.add_argument(
         "--save_path",
         action=ValidateSavePath,
         type=Path,
-        help="Path to save the trained masked model at",
+        help="Path to save trained model at.",
     )
     parser.add_argument(
-        "--predictions_path",
-        action=ValidatePredictionPath,
+        "--wandb_path",
+        action=ValidateWandbPath,
         type=Path,
-        help="Path to save predictions at",
+        help="Path to save wandb metadata.",
+    )
+    parser.add_argument(
+        "--base_model_name", type=str, default="pcfgs_base", help="Name of base model."
+    )
+    parser.add_argument(
+        "--subtask",
+        type=str,
+        default="append",
+        choices=[
+            "base_task",
+            "remove_second",
+            "remove_first",
+            "copy",
+            "append",
+            "echo",
+            "prepend",
+            "shift",
+            "swap",
+            "reverse",
+            "repeat",
+        ],
+        help="Name of subtask on which model has been pruned on.",
     )
     parser.add_argument(
         "--train_batch_size", type=int, default=64, help="Training batch size."
@@ -100,12 +122,17 @@ def parse_args() -> argparse.Namespace:
         help="Maximum temperature for continuous pruning.",
     )
     parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate.")
-    parser.add_argument("--epochs", type=int, default=5, help="Number of epochs.")
+    parser.add_argument("--epochs", type=int, default=20, help="Number of epochs.")
     parser.add_argument("--seed", type=int, default=1860, help="Random seed.")
     parser.add_argument(
         "--eval",
         action="store_true",
         help="Whether to evaluate the model in addition to training.",
+    )
+    parser.add_argument(
+        "--sweep",
+        action="store_true",
+        help="Whether to perform a hyperparameter sweep.",
     )
 
     return parser.parse_args()
@@ -113,11 +140,12 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    validate_args(args)
 
     set_seed(args.seed)
     setup_logging(args.verbose)
-    config = vars(args).copy()
+
+    # sweep config
+    config = vars(args)
     config_string = "\n".join([f"--{k}: {v}" for k, v in config.items()])
     logging.info(f"\nRunning pruning training loop with the config: \n{config_string}")
 
@@ -125,16 +153,24 @@ def main() -> None:
         entity="pmmon-Ludwig MaximilianUniversity of Munich",
         project="compositional_representations",
         config=config,
+        save_dir=args.wandb_path,
     )
 
     # load data
-    train_tokenizer = load_tokenizer(args.tokenizer_path)
-    train_dataset = SequenceDataset(args.train_mask_path, tokenizer=train_tokenizer)
+    base_model_dir = args.save_path / args.base_model_name
+    pruned_model_dir = args.save_path / args.subtask
+
+    train_tokenizer = load_tokenizer(base_model_dir)
+    train_dataset = SequenceDataset(
+        path=DATA_DIR / args.subtask / "train.csv", tokenizer=train_tokenizer
+    )
     input_vocabulary_size = len(train_tokenizer["input_language"]["index2word"])
     output_vocabulary_size = len(train_tokenizer["output_language"]["index2word"])
     args.input_vocabulary_size = input_vocabulary_size
     args.output_vocabulary_size = output_vocabulary_size
-    val_dataset = SequenceDataset(args.val_mask_path, tokenizer=train_tokenizer)
+    val_dataset = SequenceDataset(
+        path=DATA_DIR / args.subtask / "test.csv", tokenizer=train_tokenizer
+    )
 
     train_loader = DataLoader(
         train_dataset,
@@ -155,7 +191,8 @@ def main() -> None:
 
     # load model
     transformer_model = LitTransformer.load_from_checkpoint(
-        args.pretrained_model_path, args=args
+        checkpoint_path=base_model_dir / "base_model.ckpt",
+        args=args,
     )
 
     # init pruner
@@ -177,31 +214,37 @@ def main() -> None:
         pruning_method=args.pruning_method,
         maskedlayer_kwargs=pruning_methods_kwargs,
     )
+    callbacks: list = []
 
-    checkpoint_callback = ModelCheckpoint(
-        monitor="val_loss",
-        dirpath=args.save_path,
-        filename="model",
-        save_top_k=1,
-        mode="min",
-    )
+    if not args.sweep:
+        # only save when sweep is not running
+        checkpoint_callback = ModelCheckpoint(
+            monitor="val_loss",
+            dirpath=pruned_model_dir,
+            filename="pruned_model",
+            save_top_k=1,
+            mode="min",
+        )
+        callbacks.append(checkpoint_callback)
 
     # train pruner
     trainer = L.Trainer(
-        callbacks=[checkpoint_callback], max_epochs=args.epochs, logger=wandb_logger
+        callbacks=callbacks, max_epochs=args.epochs, logger=wandb_logger
     )
     trainer.fit(pl_pruned_model, train_loader, val_loader)
-    if args.save_path:
-        save_tokenizer(args.save_path, train_tokenizer)
+    save_tokenizer(pruned_model_dir, train_tokenizer)
 
     # evaluate model
     if args.eval:
+        prediction_path = RESULT_DIR / args.subtask
+        os.makedirs(prediction_path, exist_ok=True)
+
         searcher = GreedySearch(pl_pruned_model.model, val_dataset.output_language)
         accuracy = evaluate_generation(
             pl_pruned_model.model,
             searcher,
             val_loader,
-            args.predictions_path,
+            predictions_path=prediction_path,
             device=DEVICE,
         )
         logging.info(f"Final accuracy was: {accuracy}")
