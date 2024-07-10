@@ -21,6 +21,27 @@ class ValidatePredictionPath(argparse.Action):
         setattr(namespace, self.dest, values)
 
 
+class ValidateTaskOptions(argparse.Action):
+    valid_options = [
+        "remove_second",
+        "remove_first",
+        "copy",
+        "append",
+        "echo",
+        "prepend",
+        "shift",
+        "swap",
+        "reverse",
+        "repeat",
+    ]
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        for v in values:
+            if v not in self.valid_options:
+                parser.error(f"{v} is not a valid task option")
+        setattr(namespace, self.dest, values)
+
+
 class ValidateSavePath(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         Path(values).mkdir(parents=True, exist_ok=True)
