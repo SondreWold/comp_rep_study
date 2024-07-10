@@ -5,6 +5,7 @@ Evaluate trained models and subnetworks.
 import argparse
 import logging
 from pathlib import Path
+from typing import Optional
 
 import torch
 from torch.utils.data import DataLoader
@@ -69,6 +70,18 @@ def load_eval_data(path: Path, tokenizer: dict) -> SequenceDataset:
     return dataset
 
 
+def load_model(path: Path, is_masked: bool, pruning_method: Optional[str]):
+    if is_masked:
+        pl_pruner = LitPrunedModel.load_from_checkpoint(path)
+        model = pl_pruner.model
+        if pruning_method == "continuous":
+            pl_pruner.pruner.activate_ticket()
+    else:
+        pl_transformer = LitTransformer.load_from_checkpoint(path)
+        model = pl_transformer.model
+    return model
+
+
 def main() -> None:
     args = parse_args()
 
@@ -94,16 +107,7 @@ def main() -> None:
         persistent_workers=True,
     )
 
-    # load model
-    if args.is_masked:
-        pl_pruner = LitPrunedModel.load_from_checkpoint(args.model_path)
-        model = pl_pruner.model
-
-        if args.pruning_method == "continuous":
-            pl_pruner.pruner.activate_ticket()
-    else:
-        pl_transformer = LitTransformer.load_from_checkpoint(args.model_path)
-        model = pl_transformer.model
+    model = load_model(args.model_path, args.is_maked, args.pruning_method)
 
     # evaluate
     searcher = GreedySearch(model, eval_dataset.output_language)

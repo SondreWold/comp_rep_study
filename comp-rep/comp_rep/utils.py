@@ -23,6 +23,7 @@ class ValidatePredictionPath(argparse.Action):
 
 class ValidateTaskOptions(argparse.Action):
     valid_options = [
+        "base_task",
         "remove_second",
         "remove_first",
         "copy",
@@ -30,7 +31,7 @@ class ValidateTaskOptions(argparse.Action):
         "echo",
         "prepend",
         "shift",
-        "swap",
+        "swap_first_last",
         "reverse",
         "repeat",
     ]
