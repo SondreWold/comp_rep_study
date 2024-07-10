@@ -47,7 +47,13 @@ class ValidateSavePath(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         Path(values).mkdir(parents=True, exist_ok=True)
         if (Path.cwd() / str(values) / "model.ckpt").exists():
-            print("WARNING: There is already a model file saved on that path!")
+            logging.warning("There is already a model file saved on that path!")
+        setattr(namespace, self.dest, values)
+
+
+class ValidateWandbPath(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        Path(values).mkdir(parents=True, exist_ok=True)
         setattr(namespace, self.dest, values)
 
 
@@ -63,18 +69,6 @@ def keystoint(x: Dict) -> Dict:
         Dict: A dictionary with keys converted to integers if they are digits.
     """
     return {(int(k) if k.isdigit() else k): v for k, v in x.items()}
-
-
-def validate_args(args: argparse.Namespace) -> None:
-    """
-    Validates the arguments passed to the program.
-    If in eval mode and no predictions_path is provided, it prints an error message and exits.
-    """
-    if args.eval and not args.predictions_path:
-        print(
-            "For eval mode, an output path for the predictions must be set with --predictions_path"
-        )
-        exit(0)
 
 
 def set_seed(seed: int) -> None:
