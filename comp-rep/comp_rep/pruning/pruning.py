@@ -2,6 +2,7 @@
 Modules to find subnetworks via model pruning
 """
 
+from collections import defaultdict
 from typing import Any, Literal
 
 import torch
@@ -113,18 +114,40 @@ class Pruner:
             ):
                 m.update_temperature()
 
-    def get_remaining_weights(self) -> float:
+    def get_remaining_weights(self) -> dict:
         """
         Computes the macro average remaining weights of the masked modules.
 
         Returns:
             float: the macro average
         """
-        remaining = []
-        for m in self.model.modules():
+        global_remaining_running = []
+        layer_remaining_running = defaultdict(list)
+        fine_grained_remaining_weights = {}
+        for name, m in self.model.named_modules():
             if isinstance(m, MaskedLinear) or isinstance(m, MaskedLayerNorm):
-                remaining.append(m.compute_remaining_weights())
-        return sum(remaining) / len(remaining)
+                local_remainder = m.compute_remaining_weights()
+                name_list = name.split(".")
+                try:
+                    coder = f"{name_list[0]}_layer_{name_list[2]}"
+                except IndexError:
+                    coder = name
+                layer_remaining_running[coder].append(local_remainder)
+                fine_grained_remaining_weights[name] = local_remainder
+                global_remaining_running.append(local_remainder)
+
+        global_macro_average = sum(global_remaining_running) / len(
+            global_remaining_running
+        )
+        per_layer_remaining = {
+            key: sum(x) / len(x) for key, x in layer_remaining_running.items()
+        }
+        section_logs = {
+            "global_remaining_weights": global_macro_average,
+            "pruning_layers/": per_layer_remaining,
+            "pruning_finegrained/": fine_grained_remaining_weights,
+        }
+        return section_logs
 
     def activate_ticket(self):
         """

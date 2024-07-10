@@ -9,6 +9,7 @@ import lightning as L
 import torch.optim as optim
 from torch import nn
 
+import wandb
 from comp_rep.loss import get_regularized_logits_loss
 from comp_rep.pruning.pruning import Pruner
 
@@ -131,5 +132,5 @@ class LitPrunedModel(L.LightningModule):
         if self.pruning_method == "continuous":
             self.pruner.update_hyperparameters()
 
-        avg_remaining_weights = self.pruner.get_remaining_weights()
-        self.log("avg_remaining_weights", avg_remaining_weights)
+        remaining_weights = self.pruner.get_remaining_weights()
+        wandb.log(remaining_weights)  # need to use the wandb log here
