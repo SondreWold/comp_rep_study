@@ -21,7 +21,7 @@ DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 CURR_FILE_PATH = Path(__file__).resolve()
 CURR_FILE_DIR = CURR_FILE_PATH.parent
-DATA_DIR = CURR_FILE_PATH.parents[1] / "data" / "function_tasks"
+DATA_DIR = CURR_FILE_PATH.parents[1] / "data"
 RESULT_DIR = CURR_FILE_DIR / "predictions"
 
 
