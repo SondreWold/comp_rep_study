@@ -23,7 +23,7 @@ class LitPrunedModel(L.LightningModule):
         maskedlayer_kwargs: dict[str, Any],
     ):
         super().__init__()
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore=["model"])
         self.args = args
         self.pruning_method = pruning_method
 
@@ -68,7 +68,7 @@ class LitPrunedModel(L.LightningModule):
         Returns:
             torch.Tensor: The loss value calculated during the training step.
         """
-        _, ce_loss, mask_loss, loss = get_regularized_logits_loss(
+        _, _, mask_loss, loss = get_regularized_logits_loss(
             self, self.args.mask_lambda, train_batch
         )
 

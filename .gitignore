@@ -171,9 +171,13 @@ cython_debug/
 #.idea/
 
 # artifacts
-comp-rep/example_runs/wandb
+comp-rep/wandb
 comp-rep/model_checkpoints
 comp-rep/predictions
+**/wandb/
 
 # data
-data/base_tasks
+data/*
+
+# sweep configs
+comp-rep/sweeps
