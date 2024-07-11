@@ -10,12 +10,13 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 
+from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
 from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.evaluator import evaluate_generation
 from comp_rep.models.lightning_models import LitTransformer
 from comp_rep.models.lightning_pruned_models import LitPrunedModel
-from comp_rep.utils import load_tokenizer, setup_logging
+from comp_rep.utils import load_model, load_tokenizer, setup_logging
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -49,37 +50,14 @@ def parse_args() -> argparse.Namespace:
         "--pruning_task",
         type=str,
         default="append",
-        choices=[
-            "remove_second",
-            "remove_first",
-            "copy",
-            "append",
-            "echo",
-            "prepend",
-            "shift",
-            "swap",
-            "reverse",
-            "repeat",
-        ],
+        choices=POSSIBLE_TASKS,
         help="Name of subtask on which model has been pruned on.",
     )
     parser.add_argument(
         "--eval_task",
         type=str,
         default="base_task",
-        choices=[
-            "base_task",
-            "remove_second",
-            "remove_first",
-            "copy",
-            "append",
-            "echo",
-            "prepend",
-            "shift",
-            "swap",
-            "reverse",
-            "repeat",
-        ],
+        choices=POSSIBLE_TASKS,
         help="Task to evaluate model on.",
     )
     parser.add_argument(
@@ -152,6 +130,7 @@ def main() -> None:
         persistent_workers=True,
     )
 
+    model = load_model(args.model_path, args.is_masked, args.pruning_method)
     # evaluate
     os.makedirs(prediction_path, exist_ok=True)
 
