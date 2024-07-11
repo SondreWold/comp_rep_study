@@ -46,6 +46,7 @@ def parse_args() -> argparse.Namespace:
         "Full Encoder-Decoder Transformer training script."
     )
 
+    # General configs
     parser.add_argument(
         "--verbose",
         type=int,
@@ -53,6 +54,17 @@ def parse_args() -> argparse.Namespace:
         choices=[0, 1, 2],
         help="Verbose mode (0: WARNING, 1: INFO, 2: DEBUG)",
     )
+    parser.add_argument("--seed", type=int, default=1860, help="Random seed.")
+    parser.add_argument(
+        "--base_model_name", type=str, default="pcfgs_base", help="Name of base model."
+    )
+    parser.add_argument(
+        "--eval",
+        action="store_true",
+        help="Whether to evaluate the model in addition to training.",
+    )
+
+    # Path configs
     parser.add_argument(
         "--save_path",
         action=ValidateSavePath,
@@ -65,8 +77,12 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Path to save wandb metadata.",
     )
+
+    # Train parameter configs
+    parser.add_argument("--epochs", type=int, default=20, help="Number of epochs.")
+    parser.add_argument("--lr", type=float, default=7e-5, help="Learning rate.")
     parser.add_argument(
-        "--base_model_name", type=str, default="pcfgs_base", help="Name of base model."
+        "--eta_min", type=float, default=0.0, help="Minimum learning rate."
     )
     parser.add_argument(
         "--train_batch_size", type=int, default=64, help="Training batch size."
@@ -79,13 +95,18 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--layers", type=int, default=6, help="Number of layers.")
     parser.add_argument("--dropout", type=float, default=0.1, help="Dropout parameter.")
-    parser.add_argument("--lr", type=float, default=7e-5, help="Learning rate.")
-    parser.add_argument("--epochs", type=int, default=20, help="Number of epochs.")
-    parser.add_argument("--seed", type=int, default=1860, help="Random seed.")
     parser.add_argument(
-        "--eval",
-        action="store_true",
-        help="Whether to evaluate the model in addition to training.",
+        "--gradient_clip_val",
+        type=float,
+        default=0.0,
+        help="Value for gradient clipping. If 0 no gradient clipping is applied.",
+    )
+    parser.add_argument(
+        "--gradient_clip_alg",
+        type=str,
+        choices=["norm", "value"],
+        default="norm",
+        help="Algorithm for gradient clipping.",
     )
 
     return parser.parse_args()
@@ -137,6 +158,8 @@ def main() -> None:
 
     # init model
     base_model_dir = args.save_path / args.base_model_name
+    args.T_max = args.epochs * len(train_loader)
+
     pl_transformer = LitTransformer(args)
     checkpoint_callback = ModelCheckpoint(
         monitor="val_loss",
@@ -148,7 +171,11 @@ def main() -> None:
 
     # train model
     trainer = L.Trainer(
-        callbacks=[checkpoint_callback], max_epochs=args.epochs, logger=wandb_logger
+        callbacks=[checkpoint_callback],
+        gradient_clip_val=args.gradient_clip_val,
+        gradient_clip_algorithm=args.gradient_clip_alg,
+        max_epochs=args.epochs,
+        logger=wandb_logger,
     )
     trainer.fit(pl_transformer, train_loader, val_loader)
     save_tokenizer(base_model_dir, train_tokenizer)

@@ -8,6 +8,7 @@ from typing import Any, Literal
 import lightning as L
 import torch.optim as optim
 from torch import nn
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 import wandb
 from comp_rep.loss import get_regularized_logits_loss
@@ -55,7 +56,15 @@ class LitPrunedModel(L.LightningModule):
             torch.optim.Optimizer: The configured optimizer.
         """
         optimizer = optim.AdamW(self.model.parameters(), lr=self.args.lr)
-        return optimizer
+        lr_scheduler = CosineAnnealingLR(
+            optimizer=optimizer,
+            T_max=self.args.T_max,
+            eta_min=self.args.eta_min,
+        )
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": lr_scheduler,
+        }
 
     def training_step(self, train_batch: tuple, batch_idx: int):
         """
