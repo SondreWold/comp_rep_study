@@ -11,6 +11,7 @@ from typing import Optional
 import torch
 from torch.utils.data import DataLoader
 
+from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
 from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.evaluator import evaluate_generation
@@ -50,37 +51,14 @@ def parse_args() -> argparse.Namespace:
         "--pruning_task",
         type=str,
         default="append",
-        choices=[
-            "remove_second",
-            "remove_first",
-            "copy",
-            "append",
-            "echo",
-            "prepend",
-            "shift",
-            "swap",
-            "reverse",
-            "repeat",
-        ],
+        choices=POSSIBLE_TASKS,
         help="Name of subtask on which model has been pruned on.",
     )
     parser.add_argument(
         "--eval_task",
         type=str,
         default="base_task",
-        choices=[
-            "base_task",
-            "remove_second",
-            "remove_first",
-            "copy",
-            "append",
-            "echo",
-            "prepend",
-            "shift",
-            "swap",
-            "reverse",
-            "repeat",
-        ],
+        choices=POSSIBLE_TASKS,
         help="Task to evaluate model on.",
     )
     parser.add_argument(

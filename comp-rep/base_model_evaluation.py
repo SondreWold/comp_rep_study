@@ -11,6 +11,7 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 
+from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
 from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.evaluator import evaluate_generation
@@ -18,18 +19,6 @@ from comp_rep.utils import ValidateTaskOptions, load_tokenizer, setup_logging
 from evaluate import load_model
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
-DEFAULT = [
-    "remove_second",
-    "remove_first",
-    "copy",
-    "append",
-    "echo",
-    "prepend",
-    "shift",
-    "swap_first_last",
-    "reverse",
-    "repeat",
-]
 
 
 def parse_args() -> argparse.Namespace:
@@ -51,7 +40,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--eval_tasks",
         nargs="+",
-        default=DEFAULT,
+        default=POSSIBLE_TASKS,
         action=ValidateTaskOptions,
         help="Task(s) to evaluate model on.",
     )

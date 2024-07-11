@@ -8,6 +8,7 @@ from typing import Dict
 import numpy as np
 import torch
 
+from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.data_prep.dataset import Lang
 
 
@@ -22,23 +23,9 @@ class ValidatePredictionPath(argparse.Action):
 
 
 class ValidateTaskOptions(argparse.Action):
-    valid_options = [
-        "base_task",
-        "remove_second",
-        "remove_first",
-        "copy",
-        "append",
-        "echo",
-        "prepend",
-        "shift",
-        "swap_first_last",
-        "reverse",
-        "repeat",
-    ]
-
     def __call__(self, parser, namespace, values, option_string=None):
         for v in values:
-            if v not in self.valid_options:
+            if v not in POSSIBLE_TASKS:
                 parser.error(f"{v} is not a valid task option")
         setattr(namespace, self.dest, values)
 
