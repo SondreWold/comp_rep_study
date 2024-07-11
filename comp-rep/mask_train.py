@@ -113,6 +113,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--num_masks", type=int, default=4)
     parser.add_argument("--tau", type=float, default=1.0)
+    parser.add_argument("--mask_initial_value", type=float, default=0.05)
     parser.add_argument(
         "--mask_lambda",
         type=float,
