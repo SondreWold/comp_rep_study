@@ -6,6 +6,7 @@ import argparse
 
 import lightning as L
 import torch.optim as optim
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from comp_rep.loss import get_logits_loss
 from comp_rep.models.model import Transformer
@@ -49,7 +50,15 @@ class LitTransformer(L.LightningModule):
             optim.AdamW: The configured optimizer.
         """
         optimizer = optim.AdamW(self.model.parameters(), lr=self.args.lr)
-        return optimizer
+        lr_scheduler = CosineAnnealingLR(
+            optimizer=optimizer,
+            T_max=self.args.T_max,
+            eta_min=self.args.eta_min,
+        )
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": lr_scheduler,
+        }
 
     def training_step(self, train_batch: tuple, batch_idx: int):
         """
