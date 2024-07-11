@@ -6,7 +6,6 @@ import argparse
 import logging
 import os
 from pathlib import Path
-from typing import Optional
 
 import torch
 from torch.utils.data import DataLoader
@@ -17,7 +16,7 @@ from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.evaluator import evaluate_generation
 from comp_rep.models.lightning_models import LitTransformer
 from comp_rep.models.lightning_pruned_models import LitPrunedModel
-from comp_rep.utils import load_tokenizer, setup_logging
+from comp_rep.utils import load_model, load_tokenizer, setup_logging
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -85,18 +84,6 @@ def load_eval_data(path: Path, tokenizer: dict) -> SequenceDataset:
     """
     dataset = SequenceDataset(path, tokenizer)
     return dataset
-
-
-def load_model(path: Path, is_masked: bool, pruning_method: Optional[str]):
-    if is_masked:
-        pl_pruner = LitPrunedModel.load_from_checkpoint(path)
-        model = pl_pruner.model
-        if pruning_method == "continuous":
-            pl_pruner.pruner.activate_ticket()
-    else:
-        pl_transformer = LitTransformer.load_from_checkpoint(path)
-        model = pl_transformer.model
-    return model
 
 
 def main() -> None:

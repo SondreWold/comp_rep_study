@@ -3,13 +3,15 @@ import json
 import logging
 import random
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 import numpy as np
 import torch
 
 from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.data_prep.dataset import Lang
+from comp_rep.models.lightning_models import LitTransformer
+from comp_rep.models.lightning_pruned_models import LitPrunedModel
 
 
 class ValidatePredictionPath(argparse.Action):
@@ -147,3 +149,15 @@ def setup_logging(verbosity: int = 1) -> None:
         datefmt="%m/%d/%Y %H:%M:%S",
         level=level,
     )
+
+
+def load_model(path: Path, is_masked: bool, pruning_method: Optional[str]):
+    if is_masked:
+        pl_pruner = LitPrunedModel.load_from_checkpoint(path)
+        model = pl_pruner.model
+        if pruning_method == "continuous":
+            pl_pruner.pruner.activate_ticket()
+    else:
+        pl_transformer = LitTransformer.load_from_checkpoint(path)
+        model = pl_transformer.model
+    return model

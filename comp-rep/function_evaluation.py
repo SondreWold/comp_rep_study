@@ -16,10 +16,19 @@ from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
 from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.evaluator import evaluate_generation
-from comp_rep.utils import ValidateTaskOptions, load_tokenizer, setup_logging
-from evaluate import load_model
+from comp_rep.utils import (
+    ValidateTaskOptions,
+    load_model,
+    load_tokenizer,
+    setup_logging,
+)
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
+
+CURR_FILE_PATH = Path(__file__).resolve()
+CURR_FILE_DIR = CURR_FILE_PATH.parent
+DATA_DIR = CURR_FILE_PATH.parents[1] / "data/function_tasks"
+RESULT_DIR = CURR_FILE_DIR / "function_evaluations"
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,22 +54,15 @@ def parse_args() -> argparse.Namespace:
         action=ValidateTaskOptions,
         help="Task(s) to evaluate model on.",
     )
-    parser.add_argument(
-        "--eval_data_path", type=Path, help="Path to evaluation dataset."
-    )
     parser.add_argument("--save_path", type=Path, help="Path to the saved models.")
     parser.add_argument(
         "--pruning_method", type=str, default="continuous", help="Pruning method."
     )
-    parser.add_argument("--output_path", type=Path, help="Output path for evaluation.")
-
     return parser.parse_args()
 
 
 def run_mask_evaluation(
     save_path: Path,
-    eval_data_path: Path,
-    output_path: Path,
     pruning_method: Literal["sampled", "continuous"],
     tasks: list[str],
 ) -> dict:
@@ -72,9 +74,9 @@ def run_mask_evaluation(
         model = load_model(model_path, True, pruning_method)
         tokenizer = load_tokenizer(path)
         for function in tasks:
-            eval_path = eval_data_path / function / "test.csv"
+            eval_path = DATA_DIR / function / "test.csv"
             logging.info(f"Evaluating function: {function}")
-            local_output_path = output_path / f"mask_{mask_name}_function_{function}"
+            local_output_path = RESULT_DIR / f"mask_{mask_name}_function_{function}"
             Path(local_output_path).mkdir(parents=True, exist_ok=True)
             eval_dataset = SequenceDataset(eval_path, tokenizer=tokenizer)
             eval_loader = DataLoader(
@@ -101,15 +103,13 @@ def main() -> None:
     logging.info(f"\nRunning function evaluation with the config: \n{config_string}")
     result = run_mask_evaluation(
         args.save_path,
-        args.eval_data_path,
-        args.output_path,
         args.pruning_method,
         args.eval_tasks,
     )
     logging.info(result)
     result = dict(result)
     json_dict = json.dumps(result)
-    output_path = args.output_path / "function_evaluation_results.json"
+    output_path = RESULT_DIR / "function_evaluation_results.json"
     with open(output_path, "w") as f:
         f.write(json_dict)
 
