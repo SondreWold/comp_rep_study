@@ -1,24 +1,48 @@
-import argparse
+"""
+Generate subtask data for PCFG set.
+"""
 
-from generate import MarkovTree, generate_data
-from operations import ALPHABET, BINARY_FUNC, FUNC_MAP, UNARY_FUNC
+import argparse
+from pathlib import Path
+
+from comp_rep.constants import POSSIBLE_TASKS
+from comp_rep.data_prep.generate import MarkovTree, generate_data
+from comp_rep.data_prep.operations import ALPHABET, BINARY_FUNC, FUNC_MAP, UNARY_FUNC
+from comp_rep.utils import set_seed
+
+CURR_FILE_PATH = Path(__file__).resolve()
+DATA_DIR = CURR_FILE_PATH.parents[3] / "data" / "function_tasks"
 
 
 def parse_args() -> argparse.Namespace:
+    """
+    Parses the command line arguments.
+
+    Returns:
+        argparse.Namespace: An object containing the parsed command line arguments.
+    """
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task", type=str, help="The task to create data for")
+    parser.add_argument("--seed", type=int, default=1860, help="Random seed.")
     parser.add_argument(
-        "--output_path", type=str, help="The path to save the data file to"
+        "--subtask",
+        type=str,
+        default="append",
+        choices=POSSIBLE_TASKS,
+        help="Name of subtask on which model has been pruned on.",
     )
     parser.add_argument(
-        "--nr_samples", type=int, help="Number of samples to generate", default=100
+        "--nr_samples", type=int, default=100, help="Number of samples to generate"
+    )
+    parser.add_argument(
+        "--train_ratio", type=float, default=0.8, help="Ratio of train split."
     )
     args = parser.parse_args()
     return args
 
 
-if __name__ == "__main__":
+def main() -> None:
     args = parse_args()
+    set_seed(args.seed)
 
     # These are the default settings from Hupkes et al (2020).
     alphabet_ratio = 1
@@ -28,16 +52,16 @@ if __name__ == "__main__":
     omit_brackets = True
     random_probs = False
 
-    if args.task in UNARY_FUNC:
+    if args.subtask in UNARY_FUNC:
         prob_unary = 1.0
-        unary_functions = [FUNC_MAP[args.task]]
+        unary_functions = [FUNC_MAP[args.subtask]]
         binary_functions = []
-    elif args.task in BINARY_FUNC:
+    elif args.subtask in BINARY_FUNC:
         prob_unary = 0.0
-        binary_functions = [FUNC_MAP[args.task]]
+        binary_functions = [FUNC_MAP[args.subtask]]
         unary_functions = []
     else:
-        raise ValueError("Invalid task provided as argument")
+        raise ValueError("Invalid subtask provided as argument")
 
     alphabet = [
         letter + str(i) for letter in ALPHABET for i in range(1, alphabet_ratio + 1)
@@ -53,9 +77,14 @@ if __name__ == "__main__":
         omit_brackets=omit_brackets,
     )
 
-    output_file = generate_data(
+    generate_data(
         pcfg_tree=pcfg_tree_generator,
         total_samples=args.nr_samples,
-        data_root=args.output_path,
+        file_dir=DATA_DIR / args.subtask,
         random_probs=random_probs,
+        train_ratio=args.train_ratio,
     )
+
+
+if __name__ == "__main__":
+    main()

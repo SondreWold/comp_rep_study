@@ -90,7 +90,7 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="append",
         choices=[
-            "base_task",
+            "base_tasks",
             "remove_second",
             "remove_first",
             "copy",

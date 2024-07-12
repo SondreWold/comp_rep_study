@@ -1,5 +1,5 @@
 POSSIBLE_TASKS = [
-    "base_task",
+    "base_tasks",
     "remove_second",
     "remove_first",
     "copy",
