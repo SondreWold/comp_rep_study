@@ -2,7 +2,7 @@
 Code given by *Compositionality Decomposed: How do Neural Networks Generalise?*  (Dieuwke Hupkes et al. 2020).
 <https://github.com/MathijsMul/pcfg-set/blob/master/generate.py>
 
-Note that we slightly edit the code to check for sample duplicates and allow data splitting.
+Note that we slightly edit the code to check for sample duplicates and allow for data splitting.
 
 Copyright 2020 Mathijs Mul
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
