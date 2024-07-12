@@ -57,7 +57,10 @@ class LitTransformer(L.LightningModule):
         )
         return {
             "optimizer": optimizer,
-            "lr_scheduler": lr_scheduler,
+            "lr_scheduler": {
+                "scheduler": lr_scheduler,
+                "interval": "step",
+            },
         }
 
     def training_step(self, train_batch: tuple, batch_idx: int):
