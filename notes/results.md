@@ -16,3 +16,6 @@ Accuracy over seeds:
   - 42: 90.11%
 
 **Mean:90.708**,  **+- 0.3686**
+
+## Base model evaluation on all the functions
+{"base_tasks": [0.9063882316634091], "remove_second": [0.9944972486243121], "remove_first": [0.9804707060590886], "copy": [0.997], "append": [0.8739369684842421], "echo": [0.9855], "prepend": [0.904], "shift": [0.9785], "swap_first_last": [0.9925], "reverse": [0.977], "repeat": [0.9595]}
