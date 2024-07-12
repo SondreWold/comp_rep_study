@@ -56,7 +56,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--eval_task",
         type=str,
-        default="base_task",
+        default="base_tasks",
         choices=POSSIBLE_TASKS,
         help="Task to evaluate model on.",
     )

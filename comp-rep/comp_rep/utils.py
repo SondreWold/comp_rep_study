@@ -3,7 +3,7 @@ import json
 import logging
 import random
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
@@ -161,3 +161,19 @@ def load_model(path: Path, is_masked: bool, pruning_method: Optional[str]):
         pl_transformer = LitTransformer.load_from_checkpoint(path)
         model = pl_transformer.model
     return model
+
+
+def save_list_to_csv(file_path: Path, data: List[str]) -> None:
+    """
+    Save a list of strings to a CSV file.
+
+    Parameters:
+    file_path (str): Name of the CSV file to save.
+    data (List[str]): List of strings to save.
+    """
+    if not file_path.parent.exists():
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(file_path, "w", newline="") as csvfile:
+        for item in data:
+            csvfile.write(item + "\n")

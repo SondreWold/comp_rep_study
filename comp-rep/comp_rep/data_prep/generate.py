@@ -2,6 +2,8 @@
 Code given by *Compositionality Decomposed: How do Neural Networks Generalise?*  (Dieuwke Hupkes et al. 2020).
 <https://github.com/MathijsMul/pcfg-set/blob/master/generate.py>
 
+Note that we slightly edit the code to check for sample duplicates and allow data splitting.
+
 Copyright 2020 Mathijs Mul
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
     1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
@@ -11,9 +13,10 @@ Redistribution and use in source and binary forms, with or without modification,
     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
-import argparse
 import random
 import sys
+
+from comp_rep.utils import save_list_to_csv
 
 
 class MarkovTree:
@@ -148,12 +151,14 @@ class MarkovTree:
                 )
 
 
-def generate_data(pcfg_tree, total_samples, data_root, random_probs):
+def generate_data(pcfg_tree, total_samples, file_dir, random_probs, train_ratio=0.8):
+    """
+    Generate function data. Note that this function has been edited compared to the original code source.
+    """
+    sample_list = []
     t = pcfg_tree
-    output_file_name = data_root + ".txt"
-    output_file = open(output_file_name, "w")
 
-    for i in range(total_samples):
+    for _ in range(total_samples):
         if random_probs:
             t.set_probabilities(prob_unary=random.random(), prob_func=random.random())
         try:
@@ -162,145 +167,22 @@ def generate_data(pcfg_tree, total_samples, data_root, random_probs):
 
             # Control maximum tree size
             if len(written_tree) < 500:
-                output_file.write(
-                    written_tree + "\t" + " ".join(t.evaluate_tree(tree)) + "\n"
-                )
+                sample_list.append(written_tree + ";" + " ".join(t.evaluate_tree(tree)))
         except RecursionError:
             pass
 
-    return output_file_name
+    assert len(sample_list) == len(
+        set(sample_list)
+    ), f"There are duplicates in the data sample! Length of samples: {len(sample_list)}. Length of set of sample: {len(set(sample_list))}"
 
-
-if __name__ == "__main__":
-    import tasks
-    from naturalize import DataNaturalization
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--task", type=str, help="The PCFG SET task to use", default="default"
-    )
-    parser.add_argument(
-        "--alphabet_ratio",
-        type=int,
-        help="How many times to increase alphabet size",
-        default=1,
-    )
-    parser.add_argument(
-        "--random_probs",
-        action="store_true",
-        help="Use different random probabilities for each sample",
-    )
-    parser.add_argument(
-        "--prob_unary", type=float, help="P(unary|function)", default=0.75
-    )
-    parser.add_argument(
-        "--prob_func", type=float, help="P(function|argument)", default=0.25
-    )
-    parser.add_argument(
-        "--lengths", type=int, help="Lengths of string arguments", default=[2, 3, 4, 5]
-    )
-    parser.add_argument(
-        "--nr_samples", type=int, help="Number of samples to generate", default=2500
-    )
-    parser.add_argument(
-        "--no_split", action="store_true", help="Do not split into train and test yet"
-    )
-    parser.add_argument(
-        "--train_ratio",
-        type=float,
-        help="Fraction of generated data to use for training",
-        default=0.8,
-    )
-    parser.add_argument("--data_root", type=str, help="Data path root")
-    parser.add_argument(
-        "--placeholder_args",
-        action="store_true",
-        help="Generate data with placeholder arguments, containing only X characters",
-    )
-    parser.add_argument(
-        "--omit_brackets", action="store_true", help="Do not use brackets"
-    )
-    parser.add_argument(
-        "--naturalize",
-        action="store_true",
-        help="Impose natural language distribution on data",
-    )
-    parser.add_argument(
-        "--nl_file", type=str, help="Natural language file to mimic distribution from"
-    )
-    opt = parser.parse_args()
-
-    if not opt.data_root:
-        parser.error("Data path root required.")
-
-    if opt.naturalize:
-        opt.random_probs = True
-        opt.placeholder_args = True
-        opt.no_split = True
-
-    task = getattr(tasks, opt.task)
-
-    unary_functions = task.unary_functions
-    binary_functions = task.binary_functions
-    alphabet = [
-        letter + str(i)
-        for letter in task.alphabet
-        for i in range(1, opt.alphabet_ratio + 1)
-    ]
-
-    pcfg_tree_generator = MarkovTree(
-        unary_functions=unary_functions,
-        binary_functions=binary_functions,
-        alphabet=alphabet,
-        prob_unary=opt.prob_unary,
-        prob_func=opt.prob_func,
-        lengths=opt.lengths,
-        placeholders=opt.placeholder_args,
-        omit_brackets=opt.omit_brackets,
+    train_samples = sample_list[: int(train_ratio * len(sample_list))]
+    save_list_to_csv(
+        file_path=file_dir / "train.csv",
+        data=train_samples,
     )
 
-    output_file = generate_data(
-        pcfg_tree=pcfg_tree_generator,
-        total_samples=opt.nr_samples,
-        data_root=opt.data_root,
-        random_probs=opt.random_probs,
+    test_samples = sample_list[int(train_ratio * len(sample_list)) :]
+    save_list_to_csv(
+        file_path=file_dir / "test.csv",
+        data=test_samples,
     )
-
-    if opt.naturalize:
-        naturalizer = DataNaturalization(
-            alphabet=alphabet,
-            unary_functions=unary_functions,
-            binary_functions=binary_functions,
-        )
-
-        depth_intervals = range(1, 2)
-        length_intervals = range(1, 6)
-
-        opt_kl_div = 999
-        for depth_interval in depth_intervals:
-            for length_interval in length_intervals:
-                try:
-                    # Default: mimic English WMT test file
-                    kl_div, new_output_file = naturalizer.force_dist_on_data(
-                        data_gold_dist=opt.nl_file,
-                        data_to_be_transformed=output_file,
-                        depth_interval=depth_interval,
-                        length_interval=length_interval,
-                    )
-                    if kl_div < opt_kl_div:
-                        opt_kl_div = kl_div
-                        opt_dep_len = (depth_interval, length_interval)
-                        opt_file = new_output_file
-                except Exception:
-                    print("Error")
-                    pass
-
-        print(
-            "Best results for depth_interval={0}, length_interval={1}".format(
-                opt_dep_len[0], opt_dep_len[1]
-            )
-        )
-
-        naturalizer.finalize(file=opt_file)
-
-# python3 generate.py --alphabet_ratio 20 --random_probs --nr_samples 100000 --no_split --data_root 'pcfg_10funcs_520letters_100K' --placeholder_args --naturalize
