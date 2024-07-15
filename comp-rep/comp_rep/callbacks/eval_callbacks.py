@@ -43,3 +43,10 @@ class TestGenerationCallback(Callback):
                 device=self.device,
             )
             pl_module.log("val_accuracy", acc)
+
+            if hasattr(pl_module, "pruner"):
+                remaining_weights = pl_module.pruner.get_remaining_weights()
+                pl_module.log(
+                    "acc_vs_weights",
+                    (1 - acc) + remaining_weights["global_remaining_weights"],
+                )

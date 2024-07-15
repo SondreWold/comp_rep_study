@@ -1,6 +1,11 @@
+"""
+Utility functions and modules
+"""
+
 import argparse
 import json
 import logging
+import os
 import random
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -107,6 +112,9 @@ def save_tokenizer(path: Path, tokenizer: dict) -> None:
         path (Path): The path to the tokenizer file.
         tokenizer (dict): The dictionary representing the tokenizer.
     """
+    if not os.path.exists(path):
+        os.makedirs(path)
+
     with open(path / "tokenizers.json", "w", encoding="utf-8") as f:
         json.dump(tokenizer, f, ensure_ascii=False, indent=4)
 

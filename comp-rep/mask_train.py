@@ -63,7 +63,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--acc_freq",
         type=int,
-        default=10,
+        default=20,
         help="Frequency of epochs with which generation accuracy is evaluated.",
     )
     parser.add_argument(
@@ -108,6 +108,7 @@ def parse_args() -> argparse.Namespace:
             "swap",
             "reverse",
             "repeat",
+            "swap_first_last",
         ],
         help="Name of subtask on which model has been pruned on.",
     )
