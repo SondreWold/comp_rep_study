@@ -121,6 +121,7 @@ def load_tokenizer(path: Path) -> Dict:
     Returns:
         Dict: The tokenizer.
     """
+    Path(path).mkdir(parents=True, exist_ok=True)
     with open(path / "tokenizers.json", "r") as f:
         tokenizers = json.load(f, object_hook=keystoint)
     return tokenizers
