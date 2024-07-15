@@ -16,6 +16,7 @@ from comp_rep.constants import MASK_TASKS
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
 from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.evaluator import evaluate_generation
+from comp_rep.models.model import Transformer
 from comp_rep.utils import (
     ValidateTaskOptions,
     load_model,
@@ -72,10 +73,23 @@ def run_mask_evaluation(
         path = save_path / mask_name
         model_path = path / "pruned_model.ckpt"
         checkpoint = torch.load(model_path)
-        nn_module = {
-            k: v for k, v in checkpoint["state_dict"].items() if k.startswith("model.")
-        }
-        model = load_model(model_path, True, nn_module, pruning_method)
+        input_vocabulary_size = vars(checkpoint["hyper_parameters"]["args"])[
+            "input_vocabulary_size"
+        ]
+        output_vocabulary_size = vars(checkpoint["hyper_parameters"]["args"])[
+            "output_vocabulary_size"
+        ]
+        num_transformer_layers = vars(checkpoint["hyper_parameters"]["args"])["layers"]
+        hidden_size = vars(checkpoint["hyper_parameters"]["args"])["hidden_size"]
+        dropout = vars(checkpoint["hyper_parameters"]["args"])["dropout"]
+        base_model = Transformer(
+            input_vocabulary_size,
+            output_vocabulary_size,
+            num_transformer_layers,
+            hidden_size,
+            dropout,
+        )
+        model = load_model(model_path, True, base_model, pruning_method)
         tokenizer = load_tokenizer(path)
         for function in tasks:
             eval_path = DATA_DIR / function / "test.csv"
