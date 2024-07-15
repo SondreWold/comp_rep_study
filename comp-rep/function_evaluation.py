@@ -12,7 +12,7 @@ from typing import Literal
 import torch
 from torch.utils.data import DataLoader
 
-from comp_rep.constants import POSSIBLE_TASKS
+from comp_rep.constants import MASK_TASKS
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
 from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.evaluator import evaluate_generation
@@ -50,7 +50,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--eval_tasks",
         nargs="+",
-        default=POSSIBLE_TASKS,
+        default=MASK_TASKS,
         action=ValidateTaskOptions,
         help="Task(s) to evaluate model on.",
     )
@@ -70,8 +70,12 @@ def run_mask_evaluation(
     for mask_name in tasks:
         logging.info(f"Evaluating model: {mask_name}")
         path = save_path / mask_name
-        model_path = path / "model.ckpt"
-        model = load_model(model_path, True, pruning_method)
+        model_path = path / "pruned_model.ckpt"
+        checkpoint = torch.load(model_path)
+        nn_module = {
+            k: v for k, v in checkpoint["state_dict"].items() if k.startswith("model.")
+        }
+        model = load_model(model_path, True, nn_module, pruning_method)
         tokenizer = load_tokenizer(path)
         for function in tasks:
             eval_path = DATA_DIR / function / "test.csv"

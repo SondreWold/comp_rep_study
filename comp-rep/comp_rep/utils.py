@@ -7,6 +7,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import torch
+import torch.nn as nn
 
 from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.data_prep.dataset import Lang
@@ -152,9 +153,14 @@ def setup_logging(verbosity: int = 1) -> None:
     )
 
 
-def load_model(path: Path, is_masked: bool, pruning_method: Optional[str]):
+def load_model(
+    path: Path,
+    is_masked: bool,
+    model: Optional[nn.Module],
+    pruning_method: Optional[str],
+):
     if is_masked:
-        pl_pruner = LitPrunedModel.load_from_checkpoint(path)
+        pl_pruner = LitPrunedModel.load_from_checkpoint(path, model)
         model = pl_pruner.model
         if pruning_method == "continuous":
             pl_pruner.pruner.activate_ticket()

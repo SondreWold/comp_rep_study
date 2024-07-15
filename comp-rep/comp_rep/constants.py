@@ -11,3 +11,16 @@ POSSIBLE_TASKS = [
     "reverse",
     "repeat",
 ]
+
+MASK_TASKS = [
+    "remove_second",
+    "remove_first",
+    "copy",
+    "append",
+    "echo",
+    "prepend",
+    "shift",
+    "swap_first_last",
+    "reverse",
+    "repeat",
+]
