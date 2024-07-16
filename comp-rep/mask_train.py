@@ -10,11 +10,12 @@ from typing import Any
 
 import lightning as L
 import torch
-from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
 import wandb
+from comp_rep.callbacks.eval_callbacks import TestGenerationCallback
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
 from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.evaluator import evaluate_generation
@@ -60,6 +61,12 @@ def parse_args() -> argparse.Namespace:
         "--base_model_name", type=str, default="pcfgs_base", help="Name of base model."
     )
     parser.add_argument(
+        "--acc_freq",
+        type=int,
+        default=20,
+        help="Frequency of epochs with which generation accuracy is evaluated.",
+    )
+    parser.add_argument(
         "--eval",
         action="store_true",
         help="Whether to evaluate the model in addition to training.",
@@ -101,6 +108,7 @@ def parse_args() -> argparse.Namespace:
             "swap_first_last",
             "reverse",
             "repeat",
+            "swap_first_last",
         ],
         help="Name of subtask on which model has been pruned on.",
     )
@@ -144,6 +152,19 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--layers", type=int, default=6, help="Number of layers.")
     parser.add_argument("--dropout", type=float, default=0.1, help="Dropout parameter.")
+    parser.add_argument(
+        "--gradient_clip_val",
+        type=float,
+        default=0.0,
+        help="Value for gradient clipping. If 0 no gradient clipping is applied.",
+    )
+    parser.add_argument(
+        "--gradient_clip_alg",
+        type=str,
+        choices=["norm", "value"],
+        default="norm",
+        help="Algorithm for gradient clipping.",
+    )
 
     return parser.parse_args()
 
@@ -161,25 +182,26 @@ def main() -> None:
 
     wandb_logger = WandbLogger(
         entity="pmmon-Ludwig MaximilianUniversity of Munich",
-        project="compositional_representations",
+        project="circomp-mask-training",
         config=config,
         save_dir=args.wandb_path,
     )
 
     # load data
+    data_dir = DATA_DIR / "function_tasks" if args.subtask != "base_tasks" else DATA_DIR
     base_model_dir = args.save_path / args.base_model_name
     pruned_model_dir = args.save_path / args.subtask
 
     train_tokenizer = load_tokenizer(base_model_dir)
     train_dataset = SequenceDataset(
-        path=DATA_DIR / args.subtask / "train.csv", tokenizer=train_tokenizer
+        path=data_dir / args.subtask / "train.csv", tokenizer=train_tokenizer
     )
     input_vocabulary_size = len(train_tokenizer["input_language"]["index2word"])
     output_vocabulary_size = len(train_tokenizer["output_language"]["index2word"])
     args.input_vocabulary_size = input_vocabulary_size
     args.output_vocabulary_size = output_vocabulary_size
     val_dataset = SequenceDataset(
-        path=DATA_DIR / args.subtask / "test.csv", tokenizer=train_tokenizer
+        path=data_dir / args.subtask / "test.csv", tokenizer=train_tokenizer
     )
 
     train_loader = DataLoader(
@@ -225,10 +247,19 @@ def main() -> None:
         pruning_method=args.pruning_method,
         maskedlayer_kwargs=pruning_methods_kwargs,
     )
-    callbacks: list = []
+    searcher = GreedySearch(pl_pruned_model.model, val_dataset.output_language)
+
+    # callbacks
+    lr_monitor = LearningRateMonitor(logging_interval="step")
+    acc_callback = TestGenerationCallback(
+        frequency=args.acc_freq,
+        searcher=searcher,
+        test_loader=val_loader,
+        device=DEVICE,
+    )
+    callbacks: list = [lr_monitor, acc_callback]
 
     if not args.sweep:
-        # only save when sweep is not running
         checkpoint_callback = ModelCheckpoint(
             monitor="val_loss",
             dirpath=pruned_model_dir,
@@ -240,7 +271,11 @@ def main() -> None:
 
     # train pruner
     trainer = L.Trainer(
-        callbacks=callbacks, max_epochs=args.epochs, logger=wandb_logger
+        callbacks=callbacks,
+        gradient_clip_val=args.gradient_clip_val,
+        gradient_clip_algorithm=args.gradient_clip_alg,
+        max_epochs=args.epochs,
+        logger=wandb_logger,
     )
     trainer.fit(pl_pruned_model, train_loader, val_loader)
     save_tokenizer(pruned_model_dir, train_tokenizer)
