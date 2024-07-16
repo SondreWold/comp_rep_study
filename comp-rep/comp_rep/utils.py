@@ -18,6 +18,7 @@ from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.data_prep.dataset import Lang
 from comp_rep.models.lightning_models import LitTransformer
 from comp_rep.models.lightning_pruned_models import LitPrunedModel
+from comp_rep.models.model import Transformer
 
 
 class ValidatePredictionPath(argparse.Action):
@@ -158,6 +159,27 @@ def setup_logging(verbosity: int = 1) -> None:
         datefmt="%m/%d/%Y %H:%M:%S",
         level=level,
     )
+
+
+def create_transformer_from_checkpoint(model_path: Path) -> nn.Module:
+    checkpoint = torch.load(model_path, map_location=torch.device("cpu"))
+    input_vocabulary_size = vars(checkpoint["hyper_parameters"]["args"])[
+        "input_vocabulary_size"
+    ]
+    output_vocabulary_size = vars(checkpoint["hyper_parameters"]["args"])[
+        "output_vocabulary_size"
+    ]
+    num_transformer_layers = vars(checkpoint["hyper_parameters"]["args"])["layers"]
+    hidden_size = vars(checkpoint["hyper_parameters"]["args"])["hidden_size"]
+    dropout = vars(checkpoint["hyper_parameters"]["args"])["dropout"]
+    base_model = Transformer(
+        input_vocabulary_size,
+        output_vocabulary_size,
+        num_transformer_layers,
+        hidden_size,
+        dropout,
+    )
+    return base_model
 
 
 def load_model(

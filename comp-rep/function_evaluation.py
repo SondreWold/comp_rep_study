@@ -16,9 +16,9 @@ from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
 from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.evaluator import evaluate_generation
-from comp_rep.models.model import Transformer
 from comp_rep.utils import (
     ValidateTaskOptions,
+    create_transformer_from_checkpoint,
     load_model,
     load_tokenizer,
     setup_logging,
@@ -72,23 +72,8 @@ def run_mask_evaluation(
         logging.info(f"Evaluating model: {mask_name}")
         path = save_path / mask_name
         model_path = path / "pruned_model.ckpt"
-        checkpoint = torch.load(model_path)
-        input_vocabulary_size = vars(checkpoint["hyper_parameters"]["args"])[
-            "input_vocabulary_size"
-        ]
-        output_vocabulary_size = vars(checkpoint["hyper_parameters"]["args"])[
-            "output_vocabulary_size"
-        ]
-        num_transformer_layers = vars(checkpoint["hyper_parameters"]["args"])["layers"]
-        hidden_size = vars(checkpoint["hyper_parameters"]["args"])["hidden_size"]
-        dropout = vars(checkpoint["hyper_parameters"]["args"])["dropout"]
-        base_model = Transformer(
-            input_vocabulary_size,
-            output_vocabulary_size,
-            num_transformer_layers,
-            hidden_size,
-            dropout,
-        )
+        base_model = create_transformer_from_checkpoint(model_path)
+
         model = load_model(model_path, True, base_model, pruning_method)
         tokenizer = load_tokenizer(path)
         for function in tasks:
