@@ -18,6 +18,7 @@ from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.evaluator import evaluate_generation
 from comp_rep.utils import (
     ValidateTaskOptions,
+    create_transformer_from_checkpoint,
     load_model,
     load_tokenizer,
     setup_logging,
@@ -70,8 +71,10 @@ def run_mask_evaluation(
     for mask_name in tasks:
         logging.info(f"Evaluating model: {mask_name}")
         path = save_path / mask_name
-        model_path = path / "model.ckpt"
-        model = load_model(model_path, True, pruning_method)
+        model_path = path / "pruned_model.ckpt"
+        base_model = create_transformer_from_checkpoint(model_path)
+
+        model = load_model(model_path, True, base_model, pruning_method)
         tokenizer = load_tokenizer(path)
         for function in tasks:
             eval_path = DATA_DIR / function / "test.csv"

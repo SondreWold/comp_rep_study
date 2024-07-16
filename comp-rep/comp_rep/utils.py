@@ -12,11 +12,13 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import torch
+import torch.nn as nn
 
 from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.data_prep.dataset import Lang
 from comp_rep.models.lightning_models import LitTransformer
 from comp_rep.models.lightning_pruned_models import LitPrunedModel
+from comp_rep.models.model import Transformer
 
 
 class ValidatePredictionPath(argparse.Action):
@@ -159,9 +161,35 @@ def setup_logging(verbosity: int = 1) -> None:
     )
 
 
-def load_model(path: Path, is_masked: bool, pruning_method: Optional[str]):
+def create_transformer_from_checkpoint(model_path: Path) -> nn.Module:
+    checkpoint = torch.load(model_path, map_location=torch.device("cpu"))
+    input_vocabulary_size = vars(checkpoint["hyper_parameters"]["args"])[
+        "input_vocabulary_size"
+    ]
+    output_vocabulary_size = vars(checkpoint["hyper_parameters"]["args"])[
+        "output_vocabulary_size"
+    ]
+    num_transformer_layers = vars(checkpoint["hyper_parameters"]["args"])["layers"]
+    hidden_size = vars(checkpoint["hyper_parameters"]["args"])["hidden_size"]
+    dropout = vars(checkpoint["hyper_parameters"]["args"])["dropout"]
+    base_model = Transformer(
+        input_vocabulary_size,
+        output_vocabulary_size,
+        num_transformer_layers,
+        hidden_size,
+        dropout,
+    )
+    return base_model
+
+
+def load_model(
+    path: Path,
+    is_masked: bool,
+    model: Optional[nn.Module],
+    pruning_method: Optional[str],
+):
     if is_masked:
-        pl_pruner = LitPrunedModel.load_from_checkpoint(path)
+        pl_pruner = LitPrunedModel.load_from_checkpoint(path, model=model)
         model = pl_pruner.model
         if pruning_method == "continuous":
             pl_pruner.pruner.activate_ticket()

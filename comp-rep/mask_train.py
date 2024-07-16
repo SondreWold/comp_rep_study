@@ -10,12 +10,13 @@ from typing import Any
 
 import lightning as L
 import torch
+import wandb
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
-import wandb
 from comp_rep.callbacks.eval_callbacks import TestGenerationCallback
+from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
 from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.evaluator import evaluate_generation
@@ -96,20 +97,7 @@ def parse_args() -> argparse.Namespace:
         "--subtask",
         type=str,
         default="append",
-        choices=[
-            "base_tasks",
-            "remove_second",
-            "remove_first",
-            "copy",
-            "append",
-            "echo",
-            "prepend",
-            "shift",
-            "swap",
-            "reverse",
-            "repeat",
-            "swap_first_last",
-        ],
+        choices=POSSIBLE_TASKS,
         help="Name of subtask on which model has been pruned on.",
     )
     parser.add_argument(
