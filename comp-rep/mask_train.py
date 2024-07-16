@@ -10,11 +10,11 @@ from typing import Any
 
 import lightning as L
 import torch
+import wandb
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
-import wandb
 from comp_rep.callbacks.eval_callbacks import TestGenerationCallback
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
 from comp_rep.eval.decoding import GreedySearch
@@ -34,7 +34,7 @@ DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 CURR_FILE_PATH = Path(__file__).resolve()
 CURR_FILE_DIR = CURR_FILE_PATH.parent
-DATA_DIR = CURR_FILE_PATH.parents[1] / "data/function_tasks/"
+DATA_DIR = CURR_FILE_PATH.parents[1] / "data"
 SWEEP_DIR = CURR_FILE_DIR / "sweeps"
 RESULT_DIR = CURR_FILE_DIR / "predictions"
 
