@@ -12,7 +12,7 @@ from typing import Literal
 import torch
 from torch.utils.data import DataLoader
 
-from comp_rep.constants import MASK_TASKS
+from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
 from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.evaluator import evaluate_generation
@@ -51,7 +51,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--eval_tasks",
         nargs="+",
-        default=MASK_TASKS,
+        default=POSSIBLE_TASKS,
         action=ValidateTaskOptions,
         help="Task(s) to evaluate model on.",
     )

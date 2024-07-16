@@ -160,7 +160,7 @@ def load_model(
     pruning_method: Optional[str],
 ):
     if is_masked:
-        pl_pruner = LitPrunedModel.load_from_checkpoint(path, model)
+        pl_pruner = LitPrunedModel.load_from_checkpoint(path, model=model)
         model = pl_pruner.model
         if pruning_method == "continuous":
             pl_pruner.pruner.activate_ticket()
