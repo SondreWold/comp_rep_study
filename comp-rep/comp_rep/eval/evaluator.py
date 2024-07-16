@@ -3,6 +3,7 @@ Modules to evaluate models.
 """
 
 from pathlib import Path
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -16,8 +17,8 @@ def evaluate_generation(
     model: nn.Module,
     searcher: GreedySearch,
     test_loader: DataLoader,
-    predictions_path: Path,
-    device: str,
+    predictions_path: Optional[Path] = None,
+    device: Optional[str] = "cuda:0",
 ):
     """
     Generates predictions and evaluates them on the provided test loader.
@@ -60,10 +61,14 @@ def evaluate_generation(
                 targets_l.append(t)
                 predictions_l.append(p)
                 outs.append(t + "," + p + "," + str(c))
-    try:
-        with open(predictions_path / "predictions.csv", "w") as f:
-            f.write("\n".join(outs))
-    except IOError as e:
-        print(f"Failed to save predictions to file.., {e}")
-    finally:
-        return corrects / n
+
+    if predictions_path is not None:
+        try:
+            with open(predictions_path / "predictions.csv", "w") as f:
+                f.write("\n".join(outs))
+        except IOError as e:
+            print(f"Failed to save predictions to file.., {e}")
+        finally:
+            return corrects / n
+
+    return corrects / n

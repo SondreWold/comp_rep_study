@@ -9,7 +9,7 @@ from pathlib import Path
 
 import lightning as L
 import torch
-from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
@@ -123,7 +123,7 @@ def main() -> None:
 
     wandb_logger = WandbLogger(
         entity="pmmon-Ludwig MaximilianUniversity of Munich",
-        project="compositional_representations",
+        project="circomp-base-training",
         config=config,
         save_dir=args.wandb_path,
     )
@@ -161,6 +161,7 @@ def main() -> None:
     args.T_max = args.epochs * len(train_loader)
 
     pl_transformer = LitTransformer(args)
+    lr_monitor = LearningRateMonitor(logging_interval="step")
     checkpoint_callback = ModelCheckpoint(
         monitor="val_loss",
         dirpath=base_model_dir,
@@ -171,7 +172,7 @@ def main() -> None:
 
     # train model
     trainer = L.Trainer(
-        callbacks=[checkpoint_callback],
+        callbacks=[checkpoint_callback, lr_monitor],
         gradient_clip_val=args.gradient_clip_val,
         gradient_clip_algorithm=args.gradient_clip_alg,
         max_epochs=args.epochs,
