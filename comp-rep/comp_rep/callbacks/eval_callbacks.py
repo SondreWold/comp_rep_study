@@ -35,7 +35,7 @@ class TestGenerationCallback(Callback):
         """
         epoch = trainer.current_epoch
 
-        if epoch % self.frequency == 0:
+        if epoch > 0 and epoch % self.frequency == 0:
             acc = evaluate_generation(
                 model=pl_module.model,
                 searcher=self.searcher,
