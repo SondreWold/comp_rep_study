@@ -26,7 +26,7 @@ DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 CURR_FILE_PATH = Path(__file__).resolve()
 CURR_FILE_DIR = CURR_FILE_PATH.parent
-DATA_DIR = CURR_FILE_PATH.parents[1] / "data/function_tasks"
+DATA_DIR = CURR_FILE_PATH.parents[1] / "data/"
 RESULT_DIR = CURR_FILE_DIR / "base_model_evaluations"
 
 
@@ -64,8 +64,8 @@ def run_base_evaluation(
     tasks: list[str],
 ) -> dict:
     result = defaultdict(list)
-    model_path = save_path / "model.ckpt"
-    model = load_model(model_path, False, None)
+    model_path = save_path / "base_model.ckpt"
+    model = load_model(model_path, False, None, None)
     tokenizer = load_tokenizer(save_path)
     for function in tasks:
         eval_path = DATA_DIR / function / "test.csv"
