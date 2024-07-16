@@ -46,12 +46,10 @@ class MaskedLinear(nn.Module, abc.ABC):
         pass
 
     @abc.abstractmethod
-    def compute_mask(self, s_matrix: Tensor) -> Tensor:
+    def compute_mask(self) -> Tensor:
         """
-        Computes and returns the mask to be applied to the weights.
+        Computes and sets the mask to be applied to the weights.
 
-        Returns:
-            Tensor: The mask tensor.
         """
         pass
 
@@ -68,14 +66,14 @@ class MaskedLinear(nn.Module, abc.ABC):
         """
         pass
 
-    def compute_l1_norm(self, s_matrix: Tensor) -> Tensor:
+    def compute_l1_norm(self) -> Tensor:
         """
         Computes and returns the L1 norm of the weights.
 
         Returns:
             Tensor: The L1 norm of the weights.
         """
-        return torch.norm(self.compute_mask(s_matrix), p=1)
+        return torch.norm(self.b_matrix, p=1)
 
     def compute_remaining_weights(self) -> float:
         """
@@ -84,7 +82,7 @@ class MaskedLinear(nn.Module, abc.ABC):
         Returns:
             Tensor: The percentage of remaining weights
         """
-        below_zero = float((self.compute_mask(self.s_matrix) <= 0).sum())
+        below_zero = float((self.b_matrix <= 0).sum())
         original = self.s_matrix.numel()
         return 1 - below_zero / original
 
@@ -149,21 +147,13 @@ class SampledMaskLinear(MaskedLinear):
         s_matrices = [self.sample_s_matrix(eps=1e-10) for _ in range(self.num_masks)]
         return torch.stack(s_matrices, dim=0)
 
-    def compute_mask(self, s_matrix: Tensor) -> Tensor:
+    def compute_mask(self):
         """
-        Computes and returns the mask to be applied to the weights using the straight-through estimator.
-
-        Args:
-            s_matrix (Tensor): The additional variable used to compute the mask.
-
-        Returns:
-            Tensor: The mask tensor.
+        Computes the mask to be applied to the weights using the straight-through estimator.
         """
         with torch.no_grad():
-            b_i = (s_matrix > 0.5).type_as(s_matrix)
-        b_i = (b_i - s_matrix).detach() + s_matrix
-
-        return b_i
+            b_i = (self.s_matrix > 0.5).type_as(self.s_matrix)
+        self.b_matrix = (b_i - self.s_matrix).detach() + self.s_matrix
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -175,8 +165,7 @@ class SampledMaskLinear(MaskedLinear):
         Returns:
             Tensor: The output tensor.
         """
-        masks = self.compute_mask(self.s_matrix)
-        masked_weight = self.weight.unsqueeze(0) * masks
+        masked_weight = self.weight.unsqueeze(0) * self.b_matrix
         output = batch_matmul(
             x, masked_weight.transpose(-1, -2)
         )  # transpose for batch multiplication
@@ -232,21 +221,14 @@ class ContinuousMaskLinear(MaskedLinear):
         )
         return s_matrix
 
-    def compute_mask(self, s_matrix: Tensor) -> Tensor:
+    def compute_mask(self):
         """
-        Computes and returns the mask to be applied to the weights using the heaviside function or sigmoid.
-
-        Args:
-            s_matrix (Tensor): The additional variable used to compute the mask.
-
-        Returns:
-            Tensor: The mask tensor.
+        Computes and sets the mask to be applied to the weights using the heaviside function or sigmoid.
         """
         if self.ticket:
-            mask = (s_matrix > 0).float()
+            self.b_matrix = (self.s_matrix > 0).float()
         else:
-            mask = F.sigmoid(self.temp * self.s_matrix)
-        return mask
+            self.b_matrix = F.sigmoid(self.temp * self.s_matrix)
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -258,8 +240,7 @@ class ContinuousMaskLinear(MaskedLinear):
         Returns:
             Tensor: The output tensor.
         """
-        masks = self.compute_mask(self.s_matrix)
-        masked_weight = self.weight * masks
+        masked_weight = self.weight * self.b_matrix
         return F.linear(x, masked_weight, self.bias)
 
     def extra_repr(self) -> str:
