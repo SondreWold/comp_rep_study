@@ -51,7 +51,6 @@ def main() -> None:
     placeholders = False
     omit_brackets = True
     random_probs = False
-
     if args.subtask in UNARY_FUNC:
         prob_unary = 1.0
         unary_functions = [FUNC_MAP[args.subtask]]
@@ -60,6 +59,10 @@ def main() -> None:
         prob_unary = 0.0
         binary_functions = [FUNC_MAP[args.subtask]]
         unary_functions = []
+    elif args.subtask == "base_tasks":
+        prob_unary = 0.75
+        unary_functions = [FUNC_MAP[i] for i in UNARY_FUNC]
+        binary_functions = [FUNC_MAP[i] for i in BINARY_FUNC]
     else:
         raise ValueError("Invalid subtask provided as argument")
 
