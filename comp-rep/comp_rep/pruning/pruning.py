@@ -163,6 +163,7 @@ class Pruner:
                 m, ContinuousMaskLayerNorm
             ):
                 m.ticket = True
+                m.compute_mask()  # Set b_matrix
 
     def deactivate_ticket(self):
         """
@@ -173,6 +174,7 @@ class Pruner:
                 m, ContinuousMaskLayerNorm
             ):
                 m.ticket = False
+                m.compute_mask()  # Set b_matrix
 
     def compute_l1_norm(self):
         """
