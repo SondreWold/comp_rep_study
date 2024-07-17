@@ -13,7 +13,7 @@ def module_is_masked(m: nn.Module):
     return isinstance(m, MaskedLinear) or isinstance(m, MaskedLayerNorm)
 
 
-def module_is_contninuous(m: nn.Module):
+def module_is_continuous(m: nn.Module):
     return isinstance(m, ContinuousMaskLinear) or isinstance(m, ContinuousMaskLayerNorm)
 
 
@@ -25,7 +25,7 @@ def complement(subnetwork: Transformer):
         subnetwork (Transformer): The subnetwork to invert the masks for.
     """
     for m in subnetwork.modules():
-        if module_is_contninuous(m) is True:
+        if module_is_continuous(m) is True:
             assert m.ticket is True
             m.compute_mask()  # In the continuous case, we need to know that the mask is already binary
         if module_is_masked(m) is True:
@@ -41,7 +41,7 @@ def complement_copy(subnetwork: Transformer) -> Transformer:
     """
     subnetwork_copy = copy.deepcopy(subnetwork)
     for m in subnetwork_copy.modules():
-        if module_is_contninuous(m) is True:
+        if module_is_continuous(m) is True:
             assert m.ticket is True
             m.compute_mask()  # In the continuous case, we need to know that the mask is already binary
         if module_is_masked(m) is True:
@@ -61,11 +61,11 @@ def in_place_binary_function(
     """
 
     for m_A, m_B in zip(subnetwork_A.modules(), subnetwork_B.modules()):
-        if module_is_contninuous(m_A):
+        if module_is_continuous(m_A):
             assert m_A.ticket is True
             m_A.compute_mask()  # In the continuous case, we need to know that the mask is already binary
 
-        if module_is_contninuous(m_B):
+        if module_is_continuous(m_B):
             assert m_B.ticket is True
             m_B.compute_mask()
 
