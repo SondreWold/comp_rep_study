@@ -39,20 +39,17 @@ class MaskedLayerNorm(nn.Module, abc.ABC):
         pass
 
     @abc.abstractmethod
-    def compute_mask(self, s_matrix) -> Tensor:
+    def compute_mask(self):
         pass
 
-    def compute_l1_norm(self, s_matrix: Tensor):
+    def compute_l1_norm(self):
         """
         Computes the L1 norm of the s_matrix
-
-        args:
-            s_matrix (Tensor): The s_matrix
 
         Returns:
             Tensor: The L1 norm
         """
-        return torch.norm(self.compute_mask(self.s_matrix), p=1)
+        return torch.norm(self.b_matrix, p=1)
 
     def compute_remaining_weights(self) -> float:
         """
@@ -61,7 +58,7 @@ class MaskedLayerNorm(nn.Module, abc.ABC):
         Returns:
             float: The percentage of remaining weights
         """
-        below_zero = float((self.compute_mask(self.s_matrix) <= 0).sum())
+        below_zero = float((self.b_matrix <= 0).sum())
         original = self.s_matrix.numel()
         return 1 - below_zero / original
 
@@ -132,21 +129,14 @@ class SampledMaskLayerNorm(MaskedLayerNorm):
         s_matrices = [self.sample_s_matrix(eps=1e-10) for _ in range(self.num_masks)]
         return torch.stack(s_matrices, dim=0)
 
-    def compute_mask(self, s_matrix: Tensor) -> Tensor:
+    def compute_mask(self) -> Tensor:
         """
-        Computes and returns the mask to be applied to the weights using the straight-through estimator.
+        Computes and sets the mask to be applied to the weights using the straight-through estimator.
 
-        Args:
-            s_matrix (Tensor): The additional variable used to compute the mask.
-
-        Returns:
-            Tensor: The mask tensor.
         """
         with torch.no_grad():
-            b_i = (s_matrix > 0.5).type_as(s_matrix)
-        b_i = (b_i - s_matrix).detach() + s_matrix
-
-        return b_i
+            b_i = (self.s_matrix > 0.5).type_as(self.s_matrix)
+        self.b_matrix = (b_i - self.s_matrix).detach() + self.s_matrix
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -158,8 +148,7 @@ class SampledMaskLayerNorm(MaskedLayerNorm):
         Returns:
             Tensor: The output tensor.
         """
-        masks = self.compute_mask(self.s_matrix)
-        masked_weight = self.weight.unsqueeze(0) * masks
+        masked_weight = self.weight.unsqueeze(0) * self.b_matrix
 
         mu = x.mean(-1, keepdim=True)
         std = x.std(-1, keepdim=True)
@@ -220,21 +209,14 @@ class ContinuousMaskLayerNorm(MaskedLayerNorm):
         """
         self.temp = self.temp * self.temperature_increase
 
-    def compute_mask(self, s_matrix: Tensor) -> Tensor:
+    def compute_mask(self) -> Tensor:
         """
-        Compute the mask.
-
-        Args:
-            s_matrix (Tensor): The current s_matrix.
-
-        Returns:
-            Tensor: The computed mask.
+        Compute and sets the mask.
         """
         if self.ticket:
-            weight_mask = (s_matrix > 0).float()
+            self.b_matrix = (self.s_matrix > 0).float()
         else:
-            weight_mask = F.sigmoid(self.temp * self.s_matrix)
-        return weight_mask
+            self.b_matrix = F.sigmoid(self.temp * self.s_matrix)
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -246,8 +228,7 @@ class ContinuousMaskLayerNorm(MaskedLayerNorm):
         Returns:
             Tensor: The output tensor after applying layer normalization with a masked weight.
         """
-        weight_mask = self.compute_mask(self.s_matrix)
-        masked_weight = self.weight * weight_mask
+        masked_weight = self.weight * self.b_matrix
         return F.layer_norm(
             x, self.normalized_shape, masked_weight, self.bias, self.eps
         )
@@ -276,9 +257,7 @@ if __name__ == "__main__":
     output_tensor = layer_norm(input_tensor)
 
     print(f"Continuous layer norm output: \n{output_tensor_cont}")
-    print(
-        f"L1 norm: \n{cont_mask_layernorm.compute_l1_norm(cont_mask_layernorm.s_matrix)}"
-    )  # should be 0
+    print(f"L1 norm: \n{cont_mask_layernorm.compute_l1_norm()}")  # should be 0
     print(f"Normal layer norm output: \n{output_tensor}")
 
     # SampledMaskLayerNorm
@@ -298,6 +277,4 @@ if __name__ == "__main__":
 
     print(f"Normal layer norm output: \n{output_tensor.shape}")
     print(f"Sampled layer norm output: \n{output_tensor_sampled.shape}")
-    print(
-        f"L1 norm: \n{sampled_mask_layernorm.compute_l1_norm(sampled_mask_layernorm.s_matrix)}"
-    )  # should be 0
+    print(f"L1 norm: \n{sampled_mask_layernorm.compute_l1_norm()}")  # should be 0
