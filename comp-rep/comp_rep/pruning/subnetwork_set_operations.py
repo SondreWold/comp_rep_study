@@ -1,4 +1,3 @@
-import copy
 from typing import Callable
 
 import torch
@@ -17,7 +16,7 @@ def module_is_continuous(m: nn.Module):
     return isinstance(m, ContinuousMaskLinear) or isinstance(m, ContinuousMaskLayerNorm)
 
 
-def complement(subnetwork: Transformer):
+def complement_(subnetwork: Transformer):
     """
     Inverts the binary mask of the provided subnetwork.
 
@@ -27,29 +26,28 @@ def complement(subnetwork: Transformer):
     for m in subnetwork.modules():
         if module_is_continuous(m) is True:
             assert m.ticket is True
-            m.compute_mask()  # In the continuous case, we need to know that the mask is already binary
+
         if module_is_masked(m) is True:
-            setattr(m, "b_matrix", (~m.b_matrix.bool()).float())
+            setattr(m, "b_matrix", ~m.b_matrix.bool())
 
 
-def complement_copy(subnetwork: Transformer) -> Transformer:
+def complement(subnetwork: Transformer) -> Transformer:
     """
     Inverts the binary mask of the provided subnetwork.
 
     Args:
         subnetwork (Transformer): The subnetwork to invert the masks for.
     """
-    subnetwork_copy = copy.deepcopy(subnetwork)
-    for m in subnetwork_copy.modules():
+    for m in subnetwork.modules():
         if module_is_continuous(m) is True:
             assert m.ticket is True
-            m.compute_mask()  # In the continuous case, we need to know that the mask is already binary
+
         if module_is_masked(m) is True:
-            setattr(m, "b_matrix", (~m.b_matrix.bool()).float())
-    return subnetwork_copy
+            setattr(m, "b_matrix", ~m.b_matrix.bool())
+    return subnetwork
 
 
-def in_place_binary_function(
+def binary_function_(
     subnetwork_A: Transformer, subnetwork_B: Transformer, operator: Callable
 ):
     """
@@ -63,17 +61,40 @@ def in_place_binary_function(
     for m_A, m_B in zip(subnetwork_A.modules(), subnetwork_B.modules()):
         if module_is_continuous(m_A):
             assert m_A.ticket is True
-            m_A.compute_mask()  # In the continuous case, we need to know that the mask is already binary
 
         if module_is_continuous(m_B):
             assert m_B.ticket is True
-            m_B.compute_mask()
 
         if module_is_masked(m_A) and module_is_masked(m_B):
-            setattr(m_A, "b_matrix", operator(m_A.b_matrix, m_B.b_matrix))
+            intermediate_result = operator(m_A.b_matrix, m_B.b_matrix)
+            setattr(m_A, "b_matrix", intermediate_result)
 
 
-def intersection(subnetwork_A: Transformer, subnetwork_B: Transformer):
+def binary_function(
+    subnetwork_A: Transformer, subnetwork_B: Transformer, operator: Callable
+) -> Transformer:
+    """
+    Replaces the binary mask of subnetwork_A with the union of its own mask and the mask of subnetwork_B.
+
+    Args:
+        subnetwork_A (Transformer): The first subnetwork.
+        subnetwork_B (Transformer): The second subnetwork.
+    """
+
+    for m_A, m_B in zip(subnetwork_A.modules(), subnetwork_B.modules()):
+        if module_is_continuous(m_A):
+            assert m_A.ticket is True
+
+        if module_is_continuous(m_B):
+            assert m_B.ticket is True
+
+        if module_is_masked(m_A) and module_is_masked(m_B):
+            intermediate_result = operator(m_A.b_matrix, m_B.b_matrix)
+            setattr(m_A, "b_matrix", intermediate_result)
+    return subnetwork_A
+
+
+def intersection_(subnetwork_A: Transformer, subnetwork_B: Transformer):
     """
     Replaces the binary mask of subnetwork_A with the intersection of its own mask and the mask of subnetwork_B.
 
@@ -81,10 +102,21 @@ def intersection(subnetwork_A: Transformer, subnetwork_B: Transformer):
         subnetwork_A (Transformer): The first subnetwork.
         subnetwork_B (Transformer): The second subnetwork.
     """
-    in_place_binary_function(subnetwork_A, subnetwork_B, torch.logical_and)
+    binary_function_(subnetwork_A, subnetwork_B, torch.logical_and)
 
 
-def union(subnetwork_A: Transformer, subnetwork_B: Transformer):
+def intersection(subnetwork_A: Transformer, subnetwork_B: Transformer) -> Transformer:
+    """
+    Replaces the binary mask of subnetwork_A with the intersection of its own mask and the mask of subnetwork_B.
+
+    Args:
+        subnetwork_A (Transformer): The first subnetwork.
+        subnetwork_B (Transformer): The second subnetwork.
+    """
+    return binary_function(subnetwork_A, subnetwork_B, torch.logical_and)
+
+
+def union_(subnetwork_A: Transformer, subnetwork_B: Transformer):
     """
     Replaces the mask of subnetwork_A with the union of its mask with the mask of subnetwork_B
 
@@ -92,10 +124,21 @@ def union(subnetwork_A: Transformer, subnetwork_B: Transformer):
         subnetwork_A (Transformer): The first subnetwork.
         subnetwork_B (Transformer): The second subnetwork.
     """
-    in_place_binary_function(subnetwork_A, subnetwork_B, torch.logical_or)
+    binary_function_(subnetwork_A, subnetwork_B, torch.logical_or)
 
 
-def difference(subnetwork_A: Transformer, subnetwork_B: Transformer):
+def union(subnetwork_A: Transformer, subnetwork_B: Transformer) -> Transformer:
+    """
+    Replaces the mask of subnetwork_A with the union of its mask with the mask of subnetwork_B
+
+    Args:
+        subnetwork_A (Transformer): The first subnetwork.
+        subnetwork_B (Transformer): The second subnetwork.
+    """
+    return binary_function(subnetwork_A, subnetwork_B, torch.logical_or)
+
+
+def difference_(subnetwork_A: Transformer, subnetwork_B: Transformer):
     """
     Computes the set difference beween subnetwork_A and subnetwork_B.
     A / B = A ∩ ∁(B)
@@ -104,5 +147,18 @@ def difference(subnetwork_A: Transformer, subnetwork_B: Transformer):
         subnetwork_A (Transformer): The first subnetwork.
         subnetwork_B (Transformer): The second subnetwork.
     """
-    subnetwork_B = complement_copy(subnetwork_B)
-    intersection(subnetwork_A, subnetwork_B)
+    complement_(subnetwork_B)
+    intersection_(subnetwork_A, subnetwork_B)
+
+
+def difference(subnetwork_A: Transformer, subnetwork_B: Transformer) -> Transformer:
+    """
+    Computes the set difference beween subnetwork_A and subnetwork_B.
+    A / B = A ∩ ∁(B)
+
+    Args:
+        subnetwork_A (Transformer): The first subnetwork.
+        subnetwork_B (Transformer): The second subnetwork.
+    """
+    modified_B = complement(subnetwork_B)
+    return intersection(subnetwork_A, modified_B)
