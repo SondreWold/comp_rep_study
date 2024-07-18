@@ -1,3 +1,8 @@
+"""
+Subnetwork set operations
+"""
+
+import copy
 from typing import Callable
 
 import torch
@@ -38,13 +43,15 @@ def complement(subnetwork: Transformer) -> Transformer:
     Args:
         subnetwork (Transformer): The subnetwork to invert the masks for.
     """
-    for m in subnetwork.modules():
+    new_model = copy.deepcopy(subnetwork)
+    for m in new_model.modules():
         if module_is_continuous(m) is True:
             assert m.ticket is True
 
         if module_is_masked(m) is True:
             setattr(m, "b_matrix", ~m.b_matrix.bool())
-    return subnetwork
+
+    return new_model
 
 
 def binary_function_(
@@ -80,8 +87,9 @@ def binary_function(
         subnetwork_A (Transformer): The first subnetwork.
         subnetwork_B (Transformer): The second subnetwork.
     """
+    new_model = copy.deepcopy(subnetwork_A)
 
-    for m_A, m_B in zip(subnetwork_A.modules(), subnetwork_B.modules()):
+    for m_A, m_B in zip(new_model.modules(), subnetwork_B.modules()):
         if module_is_continuous(m_A):
             assert m_A.ticket is True
 
@@ -91,7 +99,8 @@ def binary_function(
         if module_is_masked(m_A) and module_is_masked(m_B):
             intermediate_result = operator(m_A.b_matrix, m_B.b_matrix)
             setattr(m_A, "b_matrix", intermediate_result)
-    return subnetwork_A
+
+    return new_model
 
 
 def intersection_(subnetwork_A: Transformer, subnetwork_B: Transformer):
