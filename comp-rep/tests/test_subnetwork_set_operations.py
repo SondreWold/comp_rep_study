@@ -35,8 +35,6 @@ def test_complement():
         if isinstance(m, ContinuousMaskLinear) or isinstance(
             m, ContinuousMaskLayerNorm
         ):
-            m.ticket = True
-            m.compute_mask()
             old_masks.append(m.b_matrix)
 
     complement(base_model)
@@ -73,8 +71,6 @@ def test_union_or_intersection(function: Callable, comparator: Callable):
         if isinstance(m, ContinuousMaskLinear) or isinstance(
             m, ContinuousMaskLayerNorm
         ):
-            m.ticket = True
-            m.compute_mask()
             old_masks_A.append(m.b_matrix)
 
     masks_B = []
@@ -82,8 +78,6 @@ def test_union_or_intersection(function: Callable, comparator: Callable):
         if isinstance(m, ContinuousMaskLinear) or isinstance(
             m, ContinuousMaskLayerNorm
         ):
-            m.ticket = True
-            m.compute_mask()
             masks_B.append(m.b_matrix)
 
     function(base_model_A, base_model_B)
@@ -117,11 +111,11 @@ def test_intersection():
 
 
 def test_difference():
-    mask_name_A = "append"
+    mask_name_A = "copy"
     model_path_A = SAVE_PATH / mask_name_A / "pruned_model.ckpt"
     base_model_A = create_transformer_from_checkpoint(model_path_A)
     base_model_A = load_model(model_path_A, True, base_model_A, "continuous")
-    mask_name_B = "remove_first"
+    mask_name_B = "reverse"
     model_path_B = SAVE_PATH / mask_name_B / "pruned_model.ckpt"
     base_model_B = create_transformer_from_checkpoint(model_path_B)
     base_model_B = load_model(model_path_B, True, base_model_B, "continuous")
@@ -131,8 +125,6 @@ def test_difference():
         if isinstance(m, ContinuousMaskLinear) or isinstance(
             m, ContinuousMaskLayerNorm
         ):
-            m.ticket = True
-            m.compute_mask()
             old_masks_A.append(m.b_matrix)
 
     old_masks_B = []
@@ -140,33 +132,22 @@ def test_difference():
         if isinstance(m, ContinuousMaskLinear) or isinstance(
             m, ContinuousMaskLayerNorm
         ):
-            m.ticket = True
-            m.compute_mask()
             old_masks_B.append(m.b_matrix)
 
     difference(base_model_A, base_model_B)
     new_masks_A = []
     for m in base_model_A.modules():
-        if isinstance(m, MaskedLinear) or isinstance(m, MaskedLayerNorm):
+        if isinstance(m, ContinuousMaskLinear) or isinstance(
+            m, ContinuousMaskLayerNorm
+        ):
             new_masks_A.append(m.b_matrix)
 
-    new_masks_B = []
-    for m in base_model_B.modules():
-        if isinstance(m, MaskedLinear) or isinstance(m, MaskedLayerNorm):
-            new_masks_B.append(m.b_matrix)
-
-    """
-    for ob, nb in zip(old_masks_B, new_masks_B):
-        assert not torch.all(torch.eq(ob, nb)), "Subnetwork B was not changed, this is unexpected..."
-    """
-    for old_A, old_B, new_A, new_B in zip(
-        old_masks_A, old_masks_B, new_masks_A, new_masks_B
-    ):
-        for old_A_row, old_B_row, new_A_row, new_B_row in zip(
-            old_A, old_B, new_A, new_B
-        ):
-            for old_A_col, old_B_col, new_A_col, new_B_col in zip(
-                old_A_row, old_B_row, new_A_row, new_B_row
-            ):
-                if old_A_col.bool() and not old_B_col.bool():
-                    assert new_A_col.bool()
+    for old_A, old_B, new_A in zip(old_masks_A, old_masks_B, new_masks_A):
+        for a_row, b_row, result_row in zip(old_A, old_B, new_A):
+            if a_row.dim() == 0:
+                if a_row.bool().item() is True and b_row.bool().item() is False:
+                    assert result_row.bool().item() is True
+                continue
+            for a_v, b_v, r_v in zip(a_row, b_row, result_row):
+                if a_v.bool().item() is True and b_v.bool().item() is False:
+                    assert r_v.bool().item() is True

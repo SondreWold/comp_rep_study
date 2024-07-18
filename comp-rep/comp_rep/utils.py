@@ -193,6 +193,7 @@ def load_model(
         model = pl_pruner.model
         if pruning_method == "continuous":
             pl_pruner.pruner.activate_ticket()
+        pl_pruner.pruner.compute_and_update_masks()
     else:
         pl_transformer = LitTransformer.load_from_checkpoint(path)
         model = pl_transformer.model
