@@ -2,19 +2,9 @@ import copy
 from typing import Callable
 
 import torch
-import torch.nn as nn
 
 from comp_rep.models.model import Transformer
-from comp_rep.pruning.masked_layernorm import ContinuousMaskLayerNorm, MaskedLayerNorm
-from comp_rep.pruning.masked_linear import ContinuousMaskLinear, MaskedLinear
-
-
-def module_is_masked(m: nn.Module):
-    return isinstance(m, MaskedLinear) or isinstance(m, MaskedLayerNorm)
-
-
-def module_is_contninuous(m: nn.Module):
-    return isinstance(m, ContinuousMaskLinear) or isinstance(m, ContinuousMaskLayerNorm)
+from comp_rep.pruning.masked_base import MaskedLayer
 
 
 def complement(subnetwork: Transformer):
@@ -25,10 +15,9 @@ def complement(subnetwork: Transformer):
         subnetwork (Transformer): The subnetwork to invert the masks for.
     """
     for m in subnetwork.modules():
-        if module_is_contninuous(m) is True:
+        if isinstance(m, MaskedLayer):
             assert m.ticket is True
             m.compute_mask()  # In the continuous case, we need to know that the mask is already binary
-        if module_is_masked(m) is True:
             setattr(m, "b_matrix", (~m.b_matrix.bool()).float())
 
 
@@ -41,11 +30,11 @@ def complement_copy(subnetwork: Transformer) -> Transformer:
     """
     subnetwork_copy = copy.deepcopy(subnetwork)
     for m in subnetwork_copy.modules():
-        if module_is_contninuous(m) is True:
+        if isinstance(m, MaskedLayer):
             assert m.ticket is True
             m.compute_mask()  # In the continuous case, we need to know that the mask is already binary
-        if module_is_masked(m) is True:
             setattr(m, "b_matrix", (~m.b_matrix.bool()).float())
+
     return subnetwork_copy
 
 
@@ -61,15 +50,13 @@ def in_place_binary_function(
     """
 
     for m_A, m_B in zip(subnetwork_A.modules(), subnetwork_B.modules()):
-        if module_is_contninuous(m_A):
+        if isinstance(m_A, MaskedLayer):
             assert m_A.ticket is True
             m_A.compute_mask()  # In the continuous case, we need to know that the mask is already binary
 
-        if module_is_contninuous(m_B):
+        if isinstance(m_B, MaskedLayer):
             assert m_B.ticket is True
             m_B.compute_mask()
-
-        if module_is_masked(m_A) and module_is_masked(m_B):
             setattr(m_A, "b_matrix", operator(m_A.b_matrix, m_B.b_matrix))
 
 

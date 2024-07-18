@@ -4,21 +4,14 @@ from typing import Callable
 import pytest
 import torch
 
-from comp_rep.pruning.masked_layernorm import ContinuousMaskLayerNorm, MaskedLayerNorm
-from comp_rep.pruning.masked_linear import ContinuousMaskLinear, MaskedLinear
+from comp_rep.pruning.masked_base import MaskedLayer
 from comp_rep.pruning.subnetwork_set_operations import (
     complement,
     difference,
     intersection,
     union,
 )
-from comp_rep.utils import (
-    ValidateTaskOptions,
-    create_transformer_from_checkpoint,
-    load_model,
-    load_tokenizer,
-    setup_logging,
-)
+from comp_rep.utils import create_transformer_from_checkpoint, load_model
 
 SAVE_PATH = Path("../base_models_trained")
 
@@ -32,9 +25,7 @@ def test_complement():
     # Need to do this loop in the test to get the "old masks"
     old_masks = []
     for m in base_model.modules():
-        if isinstance(m, ContinuousMaskLinear) or isinstance(
-            m, ContinuousMaskLayerNorm
-        ):
+        if isinstance(m, MaskedLayer):
             m.ticket = True
             m.compute_mask()
             old_masks.append(m.b_matrix)
@@ -42,9 +33,7 @@ def test_complement():
     complement(base_model)
     new_masks = []
     for m in base_model.modules():
-        if isinstance(m, ContinuousMaskLinear) or isinstance(
-            m, ContinuousMaskLayerNorm
-        ):
+        if isinstance(m, MaskedLayer):
             new_masks.append(m.b_matrix)
 
     for ob, nb in zip(old_masks, new_masks):
@@ -62,26 +51,22 @@ def test_union_or_intersection(function: Callable, comparator: Callable):
     mask_name_A = "append"
     model_path_A = SAVE_PATH / mask_name_A / "pruned_model.ckpt"
     base_model_A = create_transformer_from_checkpoint(model_path_A)
-    base_model_A = load_model(model_path_A, True, base_model_A, "continuous")
+    base_model_A = load_model(model_path_A, True, base_model_A)
     mask_name_B = "remove_second"
     model_path_B = SAVE_PATH / mask_name_B / "pruned_model.ckpt"
     base_model_B = create_transformer_from_checkpoint(model_path_B)
-    base_model_B = load_model(model_path_B, True, base_model_B, "continuous")
+    base_model_B = load_model(model_path_B, True, base_model_B)
 
     old_masks_A = []
     for m in base_model_A.modules():
-        if isinstance(m, ContinuousMaskLinear) or isinstance(
-            m, ContinuousMaskLayerNorm
-        ):
+        if isinstance(m, MaskedLayer):
             m.ticket = True
             m.compute_mask()
             old_masks_A.append(m.b_matrix)
 
     masks_B = []
     for m in base_model_B.modules():
-        if isinstance(m, ContinuousMaskLinear) or isinstance(
-            m, ContinuousMaskLayerNorm
-        ):
+        if isinstance(m, MaskedLayer):
             m.ticket = True
             m.compute_mask()
             masks_B.append(m.b_matrix)
@@ -89,12 +74,12 @@ def test_union_or_intersection(function: Callable, comparator: Callable):
     function(base_model_A, base_model_B)
     new_masks_A = []
     for m in base_model_A.modules():
-        if isinstance(m, MaskedLinear) or isinstance(m, MaskedLayerNorm):
+        if isinstance(m, MaskedLayer):
             new_masks_A.append(m.b_matrix)
 
     new_masks_B = []
     for m in base_model_B.modules():
-        if isinstance(m, MaskedLinear) or isinstance(m, MaskedLayerNorm):
+        if isinstance(m, MaskedLayer):
             new_masks_B.append(m.b_matrix)
 
     # Union should not change subnetwork_B in any way
@@ -128,18 +113,14 @@ def test_difference():
 
     old_masks_A = []
     for m in base_model_A.modules():
-        if isinstance(m, ContinuousMaskLinear) or isinstance(
-            m, ContinuousMaskLayerNorm
-        ):
+        if isinstance(m, MaskedLayer):
             m.ticket = True
             m.compute_mask()
             old_masks_A.append(m.b_matrix)
 
     old_masks_B = []
     for m in base_model_B.modules():
-        if isinstance(m, ContinuousMaskLinear) or isinstance(
-            m, ContinuousMaskLayerNorm
-        ):
+        if isinstance(m, MaskedLayer):
             m.ticket = True
             m.compute_mask()
             old_masks_B.append(m.b_matrix)
@@ -147,12 +128,12 @@ def test_difference():
     difference(base_model_A, base_model_B)
     new_masks_A = []
     for m in base_model_A.modules():
-        if isinstance(m, MaskedLinear) or isinstance(m, MaskedLayerNorm):
+        if isinstance(m, MaskedLayer):
             new_masks_A.append(m.b_matrix)
 
     new_masks_B = []
     for m in base_model_B.modules():
-        if isinstance(m, MaskedLinear) or isinstance(m, MaskedLayerNorm):
+        if isinstance(m, MaskedLayer):
             new_masks_B.append(m.b_matrix)
 
     """

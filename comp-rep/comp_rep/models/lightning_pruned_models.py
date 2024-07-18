@@ -7,10 +7,10 @@ from typing import Any, Literal
 
 import lightning as L
 import torch.optim as optim
-import wandb
 from torch import nn
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
+import wandb
 from comp_rep.loss import get_regularized_logits_loss
 from comp_rep.pruning.pruning import Pruner
 
@@ -125,8 +125,7 @@ class LitPrunedModel(L.LightningModule):
         Returns:
             None
         """
-        if self.pruning_method == "continuous":
-            self.pruner.deactivate_ticket()
+        self.pruner.deactivate_ticket()
 
     def on_validation_epoch_start(self):
         """
@@ -136,15 +135,13 @@ class LitPrunedModel(L.LightningModule):
         Returns:
             None
         """
-        if self.pruning_method == "continuous":
-            self.pruner.activate_ticket()
+        self.pruner.activate_ticket()
 
     def on_train_epoch_end(self):
         """
         Updates hyperparameters at the end of a training epoch and logs the average remaining weights.
         """
-        if self.pruning_method == "continuous":
-            self.pruner.update_hyperparameters()
+        self.pruner.update_hyperparameters()
 
         remaining_weights = self.pruner.get_remaining_weights()
         wandb.log(remaining_weights)  # need to use the wandb log here

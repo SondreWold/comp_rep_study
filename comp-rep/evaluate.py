@@ -100,9 +100,7 @@ def main() -> None:
         prediction_path = RESULT_DIR / args.pruning_task
         pl_pruner = LitPrunedModel.load_from_checkpoint(model_dir / "pruned_model.ckpt")
         model = pl_pruner.model
-
-        if args.pruning_method == "continuous":
-            pl_pruner.pruner.activate_ticket()
+        pl_pruner.pruner.activate_ticket()
     else:
         model_dir = args.save_path / args.base_model_name
         prediction_path = RESULT_DIR / args.base_model_name
@@ -130,7 +128,7 @@ def main() -> None:
         persistent_workers=True,
     )
 
-    model = load_model(args.model_path, args.is_masked, args.pruning_method)
+    model = load_model(args.model_path, args.is_masked, model)
     # evaluate
     os.makedirs(prediction_path, exist_ok=True)
 

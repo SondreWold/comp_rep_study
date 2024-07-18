@@ -186,13 +186,11 @@ def load_model(
     path: Path,
     is_masked: bool,
     model: Optional[nn.Module],
-    pruning_method: Optional[str],
 ):
     if is_masked:
         pl_pruner = LitPrunedModel.load_from_checkpoint(path, model=model)
         model = pl_pruner.model
-        if pruning_method == "continuous":
-            pl_pruner.pruner.activate_ticket()
+        pl_pruner.pruner.activate_ticket()
     else:
         pl_transformer = LitTransformer.load_from_checkpoint(path)
         model = pl_transformer.model
