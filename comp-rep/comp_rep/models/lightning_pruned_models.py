@@ -81,12 +81,16 @@ class LitPrunedModel(L.LightningModule):
             torch.Tensor: The loss value calculated during the training step.
         """
         self.pruner.compute_and_update_masks()
-        _, _, mask_loss, loss = get_regularized_logits_loss(
+        _, cross_entropy_loss, mask_loss, loss = get_regularized_logits_loss(
             self, self.args.mask_lambda, train_batch
         )
 
         self.log_dict(
-            {"train_loss": loss, "cross_entropy_loss": loss, "l1_norm_loss": mask_loss},
+            {
+                "train_loss": loss,
+                "cross_entropy_loss": cross_entropy_loss,
+                "l1_norm_loss": mask_loss,
+            },
             on_step=True,
             logger=True,
             batch_size=self.args.train_batch_size,
