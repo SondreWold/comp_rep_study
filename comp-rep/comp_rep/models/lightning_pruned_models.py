@@ -7,10 +7,10 @@ from typing import Any, Literal
 
 import lightning as L
 import torch.optim as optim
+import wandb
 from torch import nn
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
-import wandb
 from comp_rep.loss import get_regularized_logits_loss
 from comp_rep.pruning.pruning import Pruner
 
@@ -80,6 +80,7 @@ class LitPrunedModel(L.LightningModule):
         Returns:
             torch.Tensor: The loss value calculated during the training step.
         """
+        self.pruner.compute_and_update_masks()
         _, _, mask_loss, loss = get_regularized_logits_loss(
             self, self.args.mask_lambda, train_batch
         )
@@ -103,6 +104,7 @@ class LitPrunedModel(L.LightningModule):
         Returns:
             float: The calculated validation loss.
         """
+        self.pruner.compute_and_update_masks()
         _, _, _, loss = get_regularized_logits_loss(
             self, self.args.mask_lambda, val_batch
         )

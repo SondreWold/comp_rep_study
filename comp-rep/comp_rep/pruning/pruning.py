@@ -149,6 +149,11 @@ class Pruner:
         }
         return section_logs
 
+    def compute_and_update_masks(self):
+        for name, m in self.model.named_modules():
+            if isinstance(m, MaskedLinear) or isinstance(m, MaskedLayerNorm):
+                m.compute_mask()
+
     def activate_ticket(self):
         """
         Activates the ticket for evaluation mode in the Continuous Mask setting
@@ -158,6 +163,7 @@ class Pruner:
                 m, ContinuousMaskLayerNorm
             ):
                 m.ticket = True
+                m.compute_mask()  # Set b_matrix
 
     def deactivate_ticket(self):
         """
@@ -168,6 +174,7 @@ class Pruner:
                 m, ContinuousMaskLayerNorm
             ):
                 m.ticket = False
+                m.compute_mask()  # Set b_matrix
 
     def compute_l1_norm(self):
         """
@@ -176,7 +183,7 @@ class Pruner:
         norms = 0.0
         for m in self.model.modules():
             if isinstance(m, MaskedLinear) or isinstance(m, MaskedLayerNorm):
-                norms += m.compute_l1_norm(m.s_matrix)
+                norms += m.compute_l1_norm()
         return norms
 
 
