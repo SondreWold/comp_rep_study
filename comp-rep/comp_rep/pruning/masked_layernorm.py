@@ -2,7 +2,6 @@
 Masked layer norm layers for model pruning.
 """
 
-import abc
 from typing import Optional, Tuple
 
 import torch
@@ -11,66 +10,10 @@ import torch.nn.functional as F
 from torch import Tensor
 
 from comp_rep.pruning.batch_ops import batch_bias_add, batch_const_mul
+from comp_rep.pruning.masked_base import ContinuousMaskedLayer, SampledMaskedLayer
 
 
-class MaskedLayerNorm(nn.Module, abc.ABC):
-    """
-    An abstract base class for a layer norm with a customizable mask.
-    """
-
-    def __init__(
-        self,
-        normalized_shape: Tuple[int, ...],
-        weight: Tensor,
-        bias: Optional[Tensor],
-        eps: float = 1e-5,
-    ):
-        super(MaskedLayerNorm, self).__init__()
-        self.normalized_shape = normalized_shape
-        self.weight = nn.Parameter(weight, requires_grad=False)
-        if bias is not None:
-            self.bias = nn.Parameter(bias, requires_grad=False)
-        else:
-            self.register_parameter("bias", None)
-        self.eps = eps
-
-    @abc.abstractmethod
-    def init_s_matrix(self) -> Tensor:
-        pass
-
-    @abc.abstractmethod
-    def compute_mask(self):
-        pass
-
-    def compute_l1_norm(self):
-        """
-        Computes the L1 norm of the s_matrix
-
-        Returns:
-            Tensor: The L1 norm
-        """
-        return torch.norm(self.b_matrix, p=1)
-
-    def compute_remaining_weights(self) -> float:
-        """
-        Computes and returns the percentage of remaining weights
-
-        Returns:
-            float: The percentage of remaining weights
-        """
-        below_zero = float((self.b_matrix <= 0).sum())
-        original = self.s_matrix.numel()
-        return 1 - below_zero / original
-
-    @abc.abstractmethod
-    def extra_repr(self) -> str:
-        """
-        The module representation string.
-        """
-        pass
-
-
-class SampledMaskLayerNorm(MaskedLayerNorm):
+class SampledMaskLayerNorm(SampledMaskedLayer):
     """
     A masked LayerNorm module based on sampling. Masks are binarized to only keep or remove individual weights.
     This is achieved using a Gumbel-Sigmoid with a straight-through estimator.
@@ -84,6 +27,7 @@ class SampledMaskLayerNorm(MaskedLayerNorm):
         eps: float = 1e-5,
         tau: float = 1.0,
         num_masks: int = 1,
+        ticket: bool = False,
     ):
         """
         Initializes the SampledMaskLinear layer.
@@ -94,49 +38,11 @@ class SampledMaskLayerNorm(MaskedLayerNorm):
             tau (float): The tau parameter for the s_i computation. Default: 1.0.
             num_masks (int): The number of mask samples. Default: 1.
         """
-        super(SampledMaskLayerNorm, self).__init__(normalized_shape, weight, bias, eps)
-        self.tau = tau
-        self.num_masks = num_masks
-        self.logits = nn.Parameter(
-            torch.ones_like(weight) * torch.log(torch.tensor(9.0))
+        super(SampledMaskLayerNorm, self).__init__(
+            weight=weight, bias=bias, ticket=ticket, tau=tau, num_masks=num_masks
         )
-        self.s_matrix = self.init_s_matrix()
-
-    def sample_s_matrix(self, eps: float = 1e-10) -> Tensor:
-        """
-        Samples the s_matrix using the specified formula:
-        s_i = sigma((l_i - log(log(U_1) / log(U_2))) / tau) with U_1, U_2 ~ U(0, 1).
-
-        Returns:
-            Tensor: The initialized s_matrix tensor.
-        """
-        min_sampled_value = torch.ones_like(self.weight) * eps
-        U1 = torch.maximum(min_sampled_value, torch.rand_like(self.weight))
-        U2 = torch.maximum(min_sampled_value, torch.rand_like(self.weight))
-
-        log_ratio = torch.log(torch.log(U1) / torch.log(U2))
-        s_matrix = torch.sigmoid((self.logits - log_ratio) / self.tau)
-
-        return s_matrix
-
-    def init_s_matrix(self) -> Tensor:
-        """
-        Initializes multiple s_matrices.
-
-        Returns:
-            Tensor: Stacked s_matrix tensors (stacked in the 0th dimension).
-        """
-        s_matrices = [self.sample_s_matrix(eps=1e-10) for _ in range(self.num_masks)]
-        return torch.stack(s_matrices, dim=0)
-
-    def compute_mask(self) -> Tensor:
-        """
-        Computes and sets the mask to be applied to the weights using the straight-through estimator.
-
-        """
-        with torch.no_grad():
-            b_i = (self.s_matrix > 0.5).type_as(self.s_matrix)
-        self.b_matrix = (b_i - self.s_matrix).detach() + self.s_matrix
+        self.normalized_shape = normalized_shape
+        self.eps = eps
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -160,12 +66,12 @@ class SampledMaskLayerNorm(MaskedLayerNorm):
         return frac
 
     def extra_repr(self) -> str:
-        return "{normalized_shape}, eps={eps}, " "s_matrix={s_matrix.shape}".format(
+        return "{normalized_shape}, eps={eps}, s_matrix={s_matrix.shape}, b_matrix={b_matrix.shape}".format(
             **self.__dict__
         )
 
 
-class ContinuousMaskLayerNorm(MaskedLayerNorm):
+class ContinuousMaskLayerNorm(ContinuousMaskedLayer):
     def __init__(
         self,
         normalized_shape: Tuple[int, ...],
@@ -177,46 +83,14 @@ class ContinuousMaskLayerNorm(MaskedLayerNorm):
         ticket: bool = False,
     ):
         super(ContinuousMaskLayerNorm, self).__init__(
-            normalized_shape,
-            weight,
-            bias,
-            eps,
+            weight=weight,
+            bias=bias,
+            ticket=ticket,
+            mask_initial_value=mask_initial_value,
+            temperature_increase=temperature_increase,
         )
-        self.mask_initial_value = mask_initial_value
-        self.temp = 1.0
-        self.temperature_increase = temperature_increase
-        self.ticket = ticket
-        self.s_matrix = self.init_s_matrix()
-
-    def init_s_matrix(self) -> Tensor:
-        """
-        Initializes the s_matrix with constant values.
-
-        Returns:
-            Tensor: The s_matrix.
-        """
-        s_matrix = nn.Parameter(
-            nn.init.constant_(
-                torch.Tensor(self.normalized_shape),
-                self.mask_initial_value,
-            )
-        )
-        return s_matrix
-
-    def update_temperature(self):
-        """
-        Updates the temperature.
-        """
-        self.temp = self.temp * self.temperature_increase
-
-    def compute_mask(self) -> Tensor:
-        """
-        Compute and sets the mask.
-        """
-        if self.ticket:
-            self.b_matrix = (self.s_matrix > 0).float()
-        else:
-            self.b_matrix = F.sigmoid(self.temp * self.s_matrix)
+        self.normalized_shape = normalized_shape
+        self.eps = eps
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -234,9 +108,7 @@ class ContinuousMaskLayerNorm(MaskedLayerNorm):
         )
 
     def extra_repr(self) -> str:
-        return "{normalized_shape}, eps={eps}, " "s_matrix={s_matrix.shape}".format(
-            **self.__dict__
-        )
+        return f"{self.normalized_shape}, eps={self.eps}, s_matrix={self.s_matrix.shape}, b_matrix={self.b_matrix.shape}"
 
 
 if __name__ == "__main__":

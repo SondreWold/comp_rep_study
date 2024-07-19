@@ -8,12 +8,12 @@ from typing import Any, Literal
 import torch
 import torch.nn as nn
 
-from comp_rep.pruning.masked_layernorm import ContinuousMaskLayerNorm, MaskedLayerNorm
-from comp_rep.pruning.masked_linear import (
-    ContinuousMaskLinear,
-    MaskedLinear,
-    SampledMaskLinear,
+from comp_rep.pruning.masked_base import ContinuousMaskedLayer, MaskedLayer
+from comp_rep.pruning.masked_layernorm import (
+    ContinuousMaskLayerNorm,
+    SampledMaskLayerNorm,
 )
+from comp_rep.pruning.masked_linear import ContinuousMaskLinear, SampledMaskLinear
 
 
 class Pruner:
@@ -91,8 +91,17 @@ class Pruner:
                             ),
                         )
                     elif pruning_method == "sampled":
-                        # TODO
-                        pass
+                        setattr(
+                            module,
+                            name,
+                            SampledMaskLayerNorm(
+                                child.normalized_shape,
+                                child.weight,
+                                child.bias,
+                                child.eps,
+                                **maskedlayer_kwargs,
+                            ),
+                        )
                     else:
                         raise ValueError("Invalid pruning strategy method provided")
                 else:
@@ -109,9 +118,7 @@ class Pruner:
             None
         """
         for m in self.model.modules():
-            if isinstance(m, ContinuousMaskLinear) or isinstance(
-                m, ContinuousMaskLayerNorm
-            ):
+            if isinstance(m, ContinuousMaskedLayer):
                 m.update_temperature()
 
     def get_remaining_weights(self) -> dict:
@@ -125,7 +132,7 @@ class Pruner:
         layer_remaining_running = defaultdict(list)
         fine_grained_remaining_weights = {}
         for name, m in self.model.named_modules():
-            if isinstance(m, MaskedLinear) or isinstance(m, MaskedLayerNorm):
+            if isinstance(m, MaskedLayer):
                 local_remainder = m.compute_remaining_weights()
                 name_list = name.split(".")
                 try:
@@ -150,29 +157,28 @@ class Pruner:
         return section_logs
 
     def compute_and_update_masks(self):
-        for name, m in self.model.named_modules():
-            if isinstance(m, MaskedLinear) or isinstance(m, MaskedLayerNorm):
+        """
+        Computes and updates the masks for all MaskedLayer modules in the model.
+        """
+        for _, m in self.model.named_modules():
+            if isinstance(m, MaskedLayer):
                 m.compute_mask()
 
     def activate_ticket(self):
         """
-        Activates the ticket for evaluation mode in the Continuous Mask setting
+        Activates the ticket for evaluation mode in the mask layers
         """
         for m in self.model.modules():
-            if isinstance(m, ContinuousMaskLinear) or isinstance(
-                m, ContinuousMaskLayerNorm
-            ):
+            if isinstance(m, MaskedLayer):
                 m.ticket = True
                 m.compute_mask()  # Set b_matrix
 
     def deactivate_ticket(self):
         """
-        Deactivates the ticket for training mode in the Continuous Mask setting
+        Deactivates the ticket for training mode in the mask layers
         """
         for m in self.model.modules():
-            if isinstance(m, ContinuousMaskLinear) or isinstance(
-                m, ContinuousMaskLayerNorm
-            ):
+            if isinstance(m, MaskedLayer):
                 m.ticket = False
                 m.compute_mask()  # Set b_matrix
 
@@ -182,7 +188,7 @@ class Pruner:
         """
         norms = 0.0
         for m in self.model.modules():
-            if isinstance(m, MaskedLinear) or isinstance(m, MaskedLayerNorm):
+            if isinstance(m, MaskedLayer):
                 norms += m.compute_l1_norm()
         return norms
 
@@ -202,10 +208,6 @@ if __name__ == "__main__":
 
     # Define masked layer arguments
     sampled_maskedlayer_kwargs = {"tau": 1.0, "num_masks": 2}
-    cont_maskedlayer_kwargs = {
-        "mask_initial_value": 1.0,
-        "ticket": False,
-    }
 
     # Create a simple model
     model = SimpleModel()
@@ -222,6 +224,11 @@ if __name__ == "__main__":
     print(f"in tensor: \n{input_data.shape}")
     print(f"Sampled out tensor: \n{sampled_output_data.shape}")
 
+    # continuous mask
+    cont_maskedlayer_kwargs = {
+        "mask_initial_value": 1.0,
+        "ticket": False,
+    }
     model = SimpleModel()
     print(f"Toy model: \n{model}")
 

@@ -28,7 +28,7 @@ def batch_matmul(input: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
     :param weight: weight tensor, either [Ci, Co] or [N, Ci, Co]. In the latter case B must be divisible by N
     :return: tensor of [B, Co]
     """
-    assert input.ndim == 2
+    assert input.ndim == 2, f"Input dims: {input.shape}. Weight dim: {weight.shape}"
 
     if weight.ndim == 3:
         weight = weight.squeeze(0)

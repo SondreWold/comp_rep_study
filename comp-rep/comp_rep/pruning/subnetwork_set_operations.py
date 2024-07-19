@@ -6,19 +6,9 @@ import copy
 from typing import Callable
 
 import torch
-import torch.nn as nn
 
 from comp_rep.models.model import Transformer
-from comp_rep.pruning.masked_layernorm import ContinuousMaskLayerNorm, MaskedLayerNorm
-from comp_rep.pruning.masked_linear import ContinuousMaskLinear, MaskedLinear
-
-
-def module_is_masked(m: nn.Module):
-    return isinstance(m, MaskedLinear) or isinstance(m, MaskedLayerNorm)
-
-
-def module_is_continuous(m: nn.Module):
-    return isinstance(m, ContinuousMaskLinear) or isinstance(m, ContinuousMaskLayerNorm)
+from comp_rep.pruning.masked_base import MaskedLayer
 
 
 def complement_(subnetwork: Transformer):
@@ -29,10 +19,8 @@ def complement_(subnetwork: Transformer):
         subnetwork (Transformer): The subnetwork to invert the masks for.
     """
     for m in subnetwork.modules():
-        if module_is_continuous(m) is True:
+        if isinstance(m, MaskedLayer):
             assert m.ticket is True
-
-        if module_is_masked(m) is True:
             setattr(m, "b_matrix", ~m.b_matrix.bool())
 
 
@@ -43,15 +31,13 @@ def complement(subnetwork: Transformer) -> Transformer:
     Args:
         subnetwork (Transformer): The subnetwork to invert the masks for.
     """
-    new_model = copy.deepcopy(subnetwork)
-    for m in new_model.modules():
-        if module_is_continuous(m) is True:
+    subnetwork_copy = copy.deepcopy(subnetwork)
+    for m in subnetwork_copy.modules():
+        if isinstance(m, MaskedLayer):
             assert m.ticket is True
-
-        if module_is_masked(m) is True:
             setattr(m, "b_matrix", ~m.b_matrix.bool())
 
-    return new_model
+    return subnetwork_copy
 
 
 def binary_function_(
@@ -66,13 +52,13 @@ def binary_function_(
     """
 
     for m_A, m_B in zip(subnetwork_A.modules(), subnetwork_B.modules()):
-        if module_is_continuous(m_A):
+        if isinstance(m_A, MaskedLayer):
             assert m_A.ticket is True
 
-        if module_is_continuous(m_B):
+        if isinstance(m_B, MaskedLayer):
             assert m_B.ticket is True
 
-        if module_is_masked(m_A) and module_is_masked(m_B):
+        if isinstance(m_A, MaskedLayer) and isinstance(m_B, MaskedLayer):
             intermediate_result = operator(m_A.b_matrix, m_B.b_matrix)
             setattr(m_A, "b_matrix", intermediate_result)
 
@@ -90,13 +76,13 @@ def binary_function(
     new_model = copy.deepcopy(subnetwork_A)
 
     for m_A, m_B in zip(new_model.modules(), subnetwork_B.modules()):
-        if module_is_continuous(m_A):
+        if isinstance(m_A, MaskedLayer):
             assert m_A.ticket is True
 
-        if module_is_continuous(m_B):
+        if isinstance(m_B, MaskedLayer):
             assert m_B.ticket is True
 
-        if module_is_masked(m_A) and module_is_masked(m_B):
+        if isinstance(m_A, MaskedLayer) and isinstance(m_B, MaskedLayer):
             intermediate_result = operator(m_A.b_matrix, m_B.b_matrix)
             setattr(m_A, "b_matrix", intermediate_result)
 

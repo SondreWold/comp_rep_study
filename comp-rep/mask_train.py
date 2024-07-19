@@ -5,16 +5,17 @@ Model pruning script.
 import argparse
 import logging
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import lightning as L
 import torch
-import wandb
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
+import wandb
 from comp_rep.callbacks.eval_callbacks import TestGenerationCallback
 from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
@@ -168,9 +169,13 @@ def main() -> None:
     config_string = "\n".join([f"--{k}: {v}" for k, v in config.items()])
     logging.info(f"\nRunning pruning training loop with the config: \n{config_string}")
 
+    current_datetime = datetime.now()
+    formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H:%M:%S")
+
     wandb_logger = WandbLogger(
         entity="pmmon-Ludwig MaximilianUniversity of Munich",
         project="circomp-mask-training",
+        name=f"{args.pruning_method}_{args.subtask}_{formatted_datetime}",
         config=config,
         save_dir=args.wandb_path,
     )
@@ -251,7 +256,7 @@ def main() -> None:
         checkpoint_callback = ModelCheckpoint(
             monitor="val_loss",
             dirpath=pruned_model_dir,
-            filename="pruned_model",
+            filename=f"{args.pruning_method}_pruned_model",
             save_top_k=1,
             mode="min",
         )
@@ -270,7 +275,7 @@ def main() -> None:
 
     # evaluate model
     if args.eval:
-        prediction_path = RESULT_DIR / args.subtask
+        prediction_path = RESULT_DIR / args.subtask / args.pruning_method
         os.makedirs(prediction_path, exist_ok=True)
 
         searcher = GreedySearch(pl_pruned_model.model, val_dataset.output_language)
