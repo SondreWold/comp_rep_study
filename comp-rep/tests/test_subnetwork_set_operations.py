@@ -23,11 +23,11 @@ from comp_rep.pruning.subnetwork_set_operations import (
 class Transformer(nn.Module):
     def __init__(self, input_dim, output_dim, norm_shape):
         super(Transformer, self).__init__()
-        linear_weights = nn.Parameter(torch.randn(output_dim, input_dim))
+        linear_weight = nn.Parameter(torch.randn(output_dim, input_dim))
         norm_layer_weights = nn.Parameter(torch.randn(norm_shape))
 
         self.linear_layer = ContinuousMaskLinear(
-            weights=linear_weights, bias=None, ticket=True
+            weight=linear_weight, bias=None, ticket=True
         )
         self.norm_layer = ContinuousMaskLayerNorm(
             normalized_shape=norm_shape,
