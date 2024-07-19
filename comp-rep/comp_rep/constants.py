@@ -1,4 +1,10 @@
 POSSIBLE_TASKS = [
+    "copy_echo",
+    "shift_reverse",
+    "append_reverse",
+    "remove_second_copy",
+    "prepend_repeat",
+    "shift_copy",
     "base_tasks",
     "remove_second",
     "remove_first",
