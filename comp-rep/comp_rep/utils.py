@@ -191,6 +191,7 @@ def load_model(
         pl_pruner = LitPrunedModel.load_from_checkpoint(path, model=model)
         model = pl_pruner.model
         pl_pruner.pruner.activate_ticket()
+        pl_pruner.pruner.compute_and_update_masks()
     else:
         pl_transformer = LitTransformer.load_from_checkpoint(path)
         model = pl_transformer.model
