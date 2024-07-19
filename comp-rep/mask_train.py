@@ -170,7 +170,7 @@ def main() -> None:
     logging.info(f"\nRunning pruning training loop with the config: \n{config_string}")
 
     current_datetime = datetime.now()
-    formatted_datetime = current_datetime.strftime("%Y-%m-%d %H:%M:%S")
+    formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H:%M:%S")
 
     wandb_logger = WandbLogger(
         entity="pmmon-Ludwig MaximilianUniversity of Munich",
