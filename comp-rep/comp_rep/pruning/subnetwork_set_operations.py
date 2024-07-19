@@ -21,7 +21,7 @@ def complement_(subnetwork: Transformer):
     for m in subnetwork.modules():
         if isinstance(m, MaskedLayer):
             assert m.ticket is True
-            setattr(m, "b_matrix", (~m.b_matrix.bool()).float())
+            setattr(m, "b_matrix", ~m.b_matrix.bool())
 
 
 def complement(subnetwork: Transformer) -> Transformer:
@@ -35,7 +35,7 @@ def complement(subnetwork: Transformer) -> Transformer:
     for m in subnetwork_copy.modules():
         if isinstance(m, MaskedLayer):
             assert m.ticket is True
-            setattr(m, "b_matrix", (~m.b_matrix.bool()))
+            setattr(m, "b_matrix", ~m.b_matrix.bool())
 
     return subnetwork_copy
 
