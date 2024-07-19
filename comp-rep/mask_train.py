@@ -5,6 +5,7 @@ Model pruning script.
 import argparse
 import logging
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -168,9 +169,13 @@ def main() -> None:
     config_string = "\n".join([f"--{k}: {v}" for k, v in config.items()])
     logging.info(f"\nRunning pruning training loop with the config: \n{config_string}")
 
+    current_datetime = datetime.now()
+    formatted_datetime = current_datetime.strftime("%Y-%m-%d %H:%M:%S")
+
     wandb_logger = WandbLogger(
         entity="pmmon-Ludwig MaximilianUniversity of Munich",
         project="circomp-mask-training",
+        name=f"{args.pruning_method}_{args.subtask}_{formatted_datetime}",
         config=config,
         save_dir=args.wandb_path,
     )
