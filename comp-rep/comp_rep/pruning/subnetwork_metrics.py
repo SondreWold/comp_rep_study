@@ -33,6 +33,6 @@ def intersection_over_minimum(
             A_masks += m_A.b_matrix.sum().item()
             B_masks += m_B.b_matrix.sum().item()
     for m_I in intersection_model.modules():
-        if isinstance(m_A, MaskedLayer) and isinstance(m_B, MaskedLayer):
+        if isinstance(m_I, MaskedLayer) and isinstance(m_I, MaskedLayer):
             intersection_sum += m_I.b_matrix.sum().item()
     return intersection_sum / min(A_masks, B_masks)
