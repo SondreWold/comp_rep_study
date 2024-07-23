@@ -198,6 +198,15 @@ def load_model(
     return model
 
 
+def load_transformed_model_no_update(
+    path: Path,
+    model: Optional[nn.Module],
+):
+    pl_pruner = LitPrunedModel.load_from_checkpoint(path, model=model)
+    model = pl_pruner.model
+    return model
+
+
 def save_list_to_csv(file_path: Path, data: List[str]) -> None:
     """
     Save a list of strings to a CSV file.
