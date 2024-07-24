@@ -29,6 +29,9 @@ def complement(subnetwork: MaskedLayer) -> MaskedLayer:
 
     Args:
         subnetwork (MaskedLayer): The subnetwork to invert the masks for.
+
+    Returns:
+        subnetwork (MaskedLayer): The changed MaskedLayer
     """
     assert subnetwork.ticket is True
     setattr(subnetwork, "b_matrix", ~subnetwork.b_matrix.bool())
@@ -39,7 +42,7 @@ def binary_function_(
     subnetwork_A: MaskedLayer, subnetwork_B: MaskedLayer, operator: Callable
 ):
     """
-    Replaces the binary mask of subnetwork_A with the union of its own mask and the mask of subnetwork_B.
+    Replaces the binary mask of subnetwork_A with some operation between its own mask and the mask of subnetwork_B in place.
 
     Args:
         subnetwork_A (MaskedLayer): The first subnetwork.
@@ -56,11 +59,14 @@ def binary_function(
     subnetwork_A: MaskedLayer, subnetwork_B: MaskedLayer, operator: Callable
 ) -> MaskedLayer:
     """
-    Replaces the binary mask of subnetwork_A with the union of its own mask and the mask of subnetwork_B.
+    Replaces the binary mask of subnetwork_A with some operation between its own mask and the mask of subnetwork_B.
 
     Args:
         subnetwork_A (MaskedLayer): The first subnetwork.
         subnetwork_B (MaskedLayer): The second subnetwork.
+
+    Returns:
+        subnetwork (MaskedLayer): The changed MaskedLayer
     """
     assert subnetwork_A.ticket is True
     assert subnetwork_B.ticket is True
@@ -70,7 +76,7 @@ def binary_function(
 
 def intersection_(subnetwork_A: MaskedLayer, subnetwork_B: MaskedLayer):
     """
-    Replaces the binary mask of subnetwork_A with the intersection of its own mask and the mask of subnetwork_B.
+    Replaces the binary mask of subnetwork_A with the intersection of its own mask and the mask of subnetwork_B in place.
 
     Args:
         subnetwork_A (MaskedLayer): The first subnetwork.
@@ -86,13 +92,16 @@ def intersection(subnetwork_A: MaskedLayer, subnetwork_B: MaskedLayer) -> Masked
     Args:
         subnetwork_A (MaskedLayer): The first subnetwork.
         subnetwork_B (MaskedLayer): The second subnetwork.
+
+    Returns:
+        subnetwork (MaskedLayer): The changed MaskedLayer
     """
     return binary_function(subnetwork_A, subnetwork_B, torch.logical_and)
 
 
 def union_(subnetwork_A: MaskedLayer, subnetwork_B: MaskedLayer):
     """
-    Replaces the mask of subnetwork_A with the union of its mask with the mask of subnetwork_B
+    Replaces the mask of subnetwork_A with the union of its mask with the mask of subnetwork_B in place.
 
     Args:
         subnetwork_A (MaskedLayer): The first subnetwork.
@@ -108,6 +117,9 @@ def union(subnetwork_A: MaskedLayer, subnetwork_B: MaskedLayer) -> MaskedLayer:
     Args:
         subnetwork_A (MaskedLayer): The first subnetwork.
         subnetwork_B (MaskedLayer): The second subnetwork.
+
+    Returns:
+        subnetwork (MaskedLayer): The changed MaskedLayer
     """
     return binary_function(subnetwork_A, subnetwork_B, torch.logical_or)
 
@@ -133,12 +145,25 @@ def difference(subnetwork_A: MaskedLayer, subnetwork_B: MaskedLayer) -> MaskedLa
     Args:
         subnetwork_A (MaskedLayer): The first subnetwork.
         subnetwork_B (MaskedLayer): The second subnetwork.
+
+    Returns:
+        subnetwork (MaskedLayer): The changed MaskedLayer
     """
     modified_B = complement(subnetwork_B)
     return intersection(subnetwork_A, modified_B)
 
 
 def union_model(subnetwork_A: Transformer, subnetwork_B: Transformer) -> Transformer:
+    """
+    Performs the union of the b_matrix on all MaskedLayers in the entire provided model
+
+    Args:
+        subnetwork_A (Transformer): The model to replace the b_matrix of
+        subnetwork_B (Transformer): The model to calculate the canghe of b_matrix with
+
+    Returns:
+        Transformer: The modified model
+    """
     subnetwork_A = copy.deepcopy(subnetwork_A)
     for sub_A, sub_B in zip(subnetwork_A.modules(), subnetwork_B.modules()):
         if isinstance(sub_A, MaskedLayer) and isinstance(sub_B, MaskedLayer):
@@ -149,6 +174,16 @@ def union_model(subnetwork_A: Transformer, subnetwork_B: Transformer) -> Transfo
 def intersection_model(
     subnetwork_A: Transformer, subnetwork_B: Transformer
 ) -> Transformer:
+    """
+    Performs the intersection of the b_matrix on all MaskedLayers in the entire provided model
+
+    Args:
+        subnetwork_A (Transformer): The model to replace the b_matrix of
+        subnetwork_B (Transformer): The model to calculate the canghe of b_matrix with
+
+    Returns:
+        Transformer: The modified model
+    """
     subnetwork_A = copy.deepcopy(subnetwork_A)
     for sub_A, sub_B in zip(subnetwork_A.modules(), subnetwork_B.modules()):
         if isinstance(sub_A, MaskedLayer) and isinstance(sub_B, MaskedLayer):
@@ -159,6 +194,16 @@ def intersection_model(
 def difference_model(
     subnetwork_A: Transformer, subnetwork_B: Transformer
 ) -> Transformer:
+    """
+    Performs the difference of the b_matrix on all MaskedLayers in the entire provided model
+
+    Args:
+        subnetwork_A (Transformer): The model to replace the b_matrix of
+        subnetwork_B (Transformer): The model to calculate the canghe of b_matrix with
+
+    Returns:
+        Transformer: The modified model
+    """
     subnetwork_A = copy.deepcopy(subnetwork_A)
     subnetwork_B = copy.deepcopy(subnetwork_B)
     for sub_A, sub_B in zip(subnetwork_A.modules(), subnetwork_B.modules()):
@@ -168,6 +213,15 @@ def difference_model(
 
 
 def complement_model(subnetwork: Transformer) -> Transformer:
+    """
+    Performs the complement of the b_matrix on all MaskedLayers in the entire provided model
+
+    Args:
+        subnetwork (Transformer): The model to replace the b_matrix of
+
+    Returns:
+        Transformer: The modfied model
+    """
     subnetwork = copy.deepcopy(subnetwork)
     for sub in subnetwork.modules():
         if isinstance(sub, MaskedLayer):
@@ -176,24 +230,51 @@ def complement_model(subnetwork: Transformer) -> Transformer:
 
 
 def union_model_(subnetwork_A: Transformer, subnetwork_B: Transformer):
+    """
+    Performs the union of the b_matrix on all MaskedLayers in the entire provided model in place
+
+    Args:
+        subnetwork_A (Transformer): The model to replace the b_matrix of
+        subnetwork_B (Transformer): The model to calculate the canghe of b_matrix with
+    """
     for sub_A, sub_B in zip(subnetwork_A.modules(), subnetwork_B.modules()):
         if isinstance(sub_A, MaskedLayer) and isinstance(sub_B, MaskedLayer):
             union_(sub_A, sub_B)
 
 
 def intersection_model_(subnetwork_A: Transformer, subnetwork_B: Transformer):
+    """
+    Performs the intersection of the b_matrix on all MaskedLayers in the entire provided model in place
+
+    Args:
+        subnetwork_A (Transformer): The model to replace the b_matrix of
+        subnetwork_B (Transformer): The model to calculate the canghe of b_matrix with
+    """
     for sub_A, sub_B in zip(subnetwork_A.modules(), subnetwork_B.modules()):
         if isinstance(sub_A, MaskedLayer) and isinstance(sub_B, MaskedLayer):
             intersection_(sub_A, sub_B)
 
 
 def difference_model_(subnetwork_A: Transformer, subnetwork_B: Transformer):
+    """
+    Performs the difference of the b_matrix on all MaskedLayers in the entire provided model in place
+
+    Args:
+        subnetwork_A (Transformer): The model to replace the b_matrix of
+        subnetwork_B (Transformer): The model to calculate the canghe of b_matrix with
+    """
     for sub_A, sub_B in zip(subnetwork_A.modules(), subnetwork_B.modules()):
         if isinstance(sub_A, MaskedLayer) and isinstance(sub_B, MaskedLayer):
             difference_(sub_A, sub_B)
 
 
 def complement_model_(subnetwork: Transformer):
+    """
+    Performs the complement of the b_matrix on all MaskedLayers in the entire provided model in place
+
+    Args:
+        subnetwork (Transformer): The model to replace the b_matrix of
+    """
     for sub in subnetwork.modules():
         if isinstance(sub, MaskedLayer):
             complement_(sub)
@@ -206,6 +287,19 @@ def binary_operation_by_layer_and_module(
     layer_idx: Optional[List[int]],
     module_types: Optional[List[Type]],
 ) -> Transformer:
+    """
+    Replaces the b_matrix of a MaskedLayer module with result of a binary set operation, at a specified layer and for a specific MaskedLayer type.
+
+    Args:
+        subnetwork_A (Transformer): The model to replace the b_matrix of
+        subnetwork_B (Transformer): The model to calculate the canghe of b_matrix with
+        operation (Callable): The set operation to perform
+        layer_idx (Optional[List[int]]): The layers of the model to perform the replacement in. Adding -1 adds the non-layered objects to the list, e.g output norms and projection layer.
+        module_types (Optional[List[Type]]: The type of MaskedModule to perform the replacement in
+
+    Returns:
+        Transformer
+    """
     subnetwork_A = copy.deepcopy(subnetwork_A)
     for (name_A, sub_A), (name_B, sub_B) in zip(
         subnetwork_A.named_modules(), subnetwork_B.named_modules()
