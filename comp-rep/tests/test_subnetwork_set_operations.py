@@ -9,14 +9,14 @@ from torch import nn
 from comp_rep.pruning.masked_layernorm import ContinuousMaskLayerNorm
 from comp_rep.pruning.masked_linear import ContinuousMaskLinear
 from comp_rep.pruning.subnetwork_set_operations import (
-    complement,
-    complement_,
-    difference,
-    difference_,
-    intersection,
-    intersection_,
-    union,
-    union_,
+    complement_model,
+    complement_model_,
+    difference_model,
+    difference_model_,
+    intersection_model,
+    intersection_model_,
+    union_model,
+    union_model_,
 )
 
 
@@ -77,7 +77,7 @@ def test_complement_(modelA):
     modelA.norm_layer.b_matrix = layernorm_b_matrix
 
     # test complement
-    complement_(modelA)
+    complement_model_(modelA)
 
     # the target
     linear_target = 1 - linear_b_matrix
@@ -106,7 +106,7 @@ def test_complement(modelA):
     modelA.norm_layer.b_matrix = layernorm_b_matrix
 
     # test complement
-    new_model = complement(modelA)
+    new_model = complement_model(modelA)
 
     # old model should remain same
     assert (modelA.linear_layer.b_matrix == linear_b_matrix).all()
@@ -175,7 +175,7 @@ def test_intersection_(modelA, modelB):
     )
 
     # test in-place intersection
-    intersection_(modelA, modelB)
+    intersection_model_(modelA, modelB)
 
     # modelA
     assert (modelA.linear_layer.b_matrix == target_linear_b_matrix).all()
@@ -240,7 +240,7 @@ def test_intersection(modelA, modelB):
     )
 
     # test intersection
-    new_model = intersection(modelA, modelB)
+    new_model = intersection_model(modelA, modelB)
 
     # modelA - should remain same
     assert (modelA.linear_layer.b_matrix == model_a_linear_b_matrix).all()
@@ -309,7 +309,7 @@ def test_union_(modelA, modelB):
     )
 
     # test in-place union
-    union_(modelA, modelB)
+    union_model_(modelA, modelB)
 
     # modelA
     assert (modelA.linear_layer.b_matrix == target_linear_b_matrix).all()
@@ -374,7 +374,7 @@ def test_union(modelA, modelB):
     )
 
     # test intersection
-    new_model = union(modelA, modelB)
+    new_model = union_model(modelA, modelB)
 
     # modelA - should remain same
     assert (modelA.linear_layer.b_matrix == model_a_linear_b_matrix).all()
@@ -446,7 +446,7 @@ def test_differene_(modelA, modelB):
     )
 
     # test in-place union
-    difference_(modelA, modelB)
+    difference_model_(modelA, modelB)
 
     # modelA
     assert (modelA.linear_layer.b_matrix == target_linear_b_matrix).all()
@@ -511,7 +511,7 @@ def test_difference(modelA, modelB):
     )
 
     # test intersection
-    new_model = difference(modelA, modelB)
+    new_model = difference_model(modelA, modelB)
 
     # modelA - should remain same
     assert (modelA.linear_layer.b_matrix == model_a_linear_b_matrix).all()

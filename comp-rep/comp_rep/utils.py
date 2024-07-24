@@ -221,3 +221,15 @@ def save_list_to_csv(file_path: Path, data: List[str]) -> None:
     with open(file_path, "w", newline="") as csvfile:
         for item in data:
             csvfile.write(item + "\n")
+
+
+def get_current_layer_from_module_name(module_name: str) -> int:
+    """
+    Returns the layer number from a torch.named_modules string
+    """
+    if "layers" not in module_name:
+        return -1  # Projection or output norm layers
+    else:
+        parts = module_name.split(".")
+        layer_number = int(parts[2])
+        return layer_number
