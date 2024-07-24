@@ -11,28 +11,27 @@ from comp_rep.models.model import Transformer
 from comp_rep.pruning.masked_base import MaskedLayer
 
 
-def complement_(subnetwork: Transformer):
+def complement_(subnetwork: MaskedLayer):
     """
     Inverts the binary mask of the provided subnetwork.
 
     Args:
-        subnetwork (Transformer): The subnetwork to invert the masks for.
+        subnetwork (MaskedLayer): The subnetwork to invert the masks for.
     """
     assert subnetwork.ticket is True
     setattr(subnetwork, "b_matrix", ~subnetwork.b_matrix.bool())
 
 
-def complement(subnetwork: MaskedLayer) -> Transformer:
+def complement(subnetwork: MaskedLayer) -> MaskedLayer:
     """
     Inverts the binary mask of the provided subnetwork.
 
     Args:
-        subnetwork (Transformer): The subnetwork to invert the masks for.
+        subnetwork (MaskedLayer): The subnetwork to invert the masks for.
     """
-    subnetwork_copy = copy.deepcopy(subnetwork)
     assert subnetwork.ticket is True
     setattr(subnetwork, "b_matrix", ~subnetwork.b_matrix.bool())
-    return subnetwork_copy
+    return subnetwork
 
 
 def binary_function_(
@@ -54,7 +53,7 @@ def binary_function_(
 
 def binary_function(
     subnetwork_A: MaskedLayer, subnetwork_B: MaskedLayer, operator: Callable
-) -> Transformer:
+) -> MaskedLayer:
     """
     Replaces the binary mask of subnetwork_A with the union of its own mask and the mask of subnetwork_B.
 
@@ -64,8 +63,8 @@ def binary_function(
     """
     assert subnetwork_A.ticket is True
     assert subnetwork_B.ticket is True
-    intermediate_result = operator(subnetwork_A.b_matrix, subnetwork_B.b_matrix)
-    return intermediate_result
+    subnetwork_A.b_matrix = operator(subnetwork_A.b_matrix, subnetwork_B.b_matrix)
+    return subnetwork_A
 
 
 def intersection_(subnetwork_A: MaskedLayer, subnetwork_B: MaskedLayer):
@@ -149,19 +148,18 @@ def union_model(subnetwork_A: Transformer, subnetwork_B: Transformer) -> Transfo
 def intersection_model(
     subnetwork_A: Transformer, subnetwork_B: Transformer
 ) -> Transformer:
-    subnetwork_copy = copy.deepcopy(subnetwork_A)
-    for sub_A, sub_B, sub_C in zip(
-        subnetwork_A.modules(), subnetwork_B.modules(), subnetwork_copy.modules()
-    ):
+    subnetwork_A = copy.deepcopy(subnetwork_A)
+    for sub_A, sub_B in zip(subnetwork_A.modules(), subnetwork_B.modules()):
         if isinstance(sub_A, MaskedLayer) and isinstance(sub_B, MaskedLayer):
-            sub_C = intersection(sub_A, sub_B)
-    return subnetwork_copy
+            sub_A = intersection(sub_A, sub_B)
+    return subnetwork_A
 
 
 def difference_model(
     subnetwork_A: Transformer, subnetwork_B: Transformer
 ) -> Transformer:
     subnetwork_A = copy.deepcopy(subnetwork_A)
+    subnetwork_B = copy.deepcopy(subnetwork_B)
     for sub_A, sub_B in zip(subnetwork_A.modules(), subnetwork_B.modules()):
         if isinstance(sub_A, MaskedLayer) and isinstance(sub_B, MaskedLayer):
             sub_A = difference(sub_A, sub_B)
