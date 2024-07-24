@@ -173,7 +173,7 @@ class SampledMaskedLayer(MaskedLayer):
         Returns:
             Tensor: The L1 norm
         """
-        return torch.sum(self.logits)
+        return torch.norm(self.b_matrix, p=1)
 
 
 class ContinuousMaskedLayer(MaskedLayer):
