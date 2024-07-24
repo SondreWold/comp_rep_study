@@ -219,7 +219,7 @@ def get_current_layer_from_module_name(module_name: str) -> int:
     Returns the layer number from a torch.named_modules string
     """
     if "layers" not in module_name:
-        return -1  # Projection our output norm layers
+        return -1  # Projection or output norm layers
     else:
         parts = module_name.split(".")
         layer_number = int(parts[2])
