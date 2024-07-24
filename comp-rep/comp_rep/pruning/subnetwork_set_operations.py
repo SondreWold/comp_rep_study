@@ -3,12 +3,13 @@ Subnetwork set operations
 """
 
 import copy
-from typing import Callable
+from typing import Callable, List, Optional, Type
 
 import torch
 
 from comp_rep.models.model import Transformer
 from comp_rep.pruning.masked_base import MaskedLayer
+from comp_rep.utils import get_current_layer_from_module_name
 
 
 def complement_(subnetwork: MaskedLayer):
@@ -196,3 +197,73 @@ def complement_model_(subnetwork: Transformer):
     for sub in subnetwork.modules():
         if isinstance(sub, MaskedLayer):
             complement_(sub)
+
+
+def binary_operation_by_layer_and_module(
+    subnetwork_A: Transformer,
+    subnetwork_B: Transformer,
+    operation: Callable,
+    layer_idx: Optional[List[int]],
+    module_types: Optional[List[Type]],
+) -> Transformer:
+    subnetwork_A = copy.deepcopy(subnetwork_A)
+    for (name_A, sub_A), (name_B, sub_B) in zip(
+        subnetwork_A.named_modules(), subnetwork_B.named_modules()
+    ):
+        if isinstance(sub_A, MaskedLayer) and isinstance(sub_B, MaskedLayer):
+            if layer_idx:
+                current_layer = get_current_layer_from_module_name(name_A)
+                if current_layer not in layer_idx:
+                    continue
+
+            if not module_types:  # If no type is specifed, repalce everything
+                module_types = [MaskedLayer]
+
+            for acceptable_type in module_types:
+                if isinstance(sub_A, acceptable_type) and isinstance(
+                    sub_B, acceptable_type
+                ):
+                    sub_A = operation(sub_A, sub_B)
+    return subnetwork_A
+
+
+def union_by_layer_and_module(
+    subnetwork_A: Transformer,
+    subnetwork_B: Transformer,
+    layer_idx: Optional[List[int]],
+    module_types: Optional[List[Type]],
+):
+    """
+    Replaces the b_matix of subnetwork_A with the union of subnetwork_A and subnetwork_B at a specified layerfor a specificed type of module.
+    """
+    return binary_operation_by_layer_and_module(
+        subnetwork_A, subnetwork_B, union, layer_idx, module_types
+    )
+
+
+def intersection_by_layer_and_module(
+    subnetwork_A: Transformer,
+    subnetwork_B: Transformer,
+    layer_idx: Optional[List[int]],
+    module_types: Optional[List[Type]],
+):
+    """
+    Replaces the b_matix of subnetwork_A with the intersection of subnetwork_A and subnetwork_B at a specified layer for a specificed type of module.
+    """
+    return binary_operation_by_layer_and_module(
+        subnetwork_A, subnetwork_B, intersection, layer_idx, module_types
+    )
+
+
+def difference_by_layer_and_module(
+    subnetwork_A: Transformer,
+    subnetwork_B: Transformer,
+    layer_idx: Optional[List[int]],
+    module_types: Optional[List[Type]],
+):
+    """
+    Replaces the b_matix of subnetwork_A with the difference of subnetwork_A and subnetwork_B at a specified layer for a specificed type of module.
+    """
+    return binary_operation_by_layer_and_module(
+        subnetwork_A, subnetwork_B, difference, layer_idx, module_types
+    )
