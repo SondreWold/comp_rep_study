@@ -22,7 +22,7 @@ from comp_rep.pruning.subnetwork_set_operations import (
 def modelA():
     input_vocabulary_size = 10
     output_vocabulary_size = 5
-    layers = 2
+    layers = 6
     hidden_dim = 64
     dropout = 0.1
     model = Transformer(
@@ -38,7 +38,7 @@ def modelA():
 def modelB():
     input_vocabulary_size = 10
     output_vocabulary_size = 5
-    layers = 2
+    layers = 6
     hidden_dim = 64
     dropout = 0.1
     model = Transformer(
@@ -54,7 +54,7 @@ def modelB():
 def modelC():
     input_vocabulary_size = 10
     output_vocabulary_size = 5
-    layers = 2
+    layers = 6
     hidden_dim = 64
     dropout = 0.1
     model = Transformer(
@@ -137,3 +137,31 @@ def test_difference_by_layer_and_module(modelA, modelC):
     assert torch.all(
         new_model.encoder.layers[0].self_attention.query.b_matrix == unchanged_matrix
     )
+
+
+def test_union_at_two_layers(modelA, modelB):
+    expected_result = torch.ones(modelA.hidden_size, modelA.hidden_size)
+    unchanged_matrix = torch.triu(torch.ones(modelA.hidden_size, modelA.hidden_size))
+    new_model = union_by_layer_and_module(
+        modelA, modelB, [2, 4], [ContinuousMaskLinear]
+    )
+
+    # Assert that the union works where it is supposed to
+    assert torch.all(
+        new_model.decoder.layers[2].cross_attention.query.b_matrix == expected_result
+    )
+    assert torch.all(
+        new_model.encoder.layers[4].self_attention.value.b_matrix == expected_result
+    )
+
+    # Assert that the union is not applied in another layer
+    assert torch.all(
+        new_model.decoder.layers[0].cross_attention.query.b_matrix == unchanged_matrix
+    )
+    assert torch.all(
+        new_model.encoder.layers[5].self_attention.value.b_matrix == unchanged_matrix
+    )
+
+    # Assert that no other module type is affected
+    assert torch.all(new_model.encoder.layers[2].norm_1.b_matrix == unchanged_matrix)
+    assert torch.all(new_model.encoder.layers[4].norm_1.b_matrix == unchanged_matrix)
