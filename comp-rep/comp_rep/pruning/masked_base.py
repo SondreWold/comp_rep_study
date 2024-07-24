@@ -124,8 +124,11 @@ class SampledMaskedLayer(MaskedLayer):
         self.logits = nn.Parameter(
             torch.ones_like(weight) * torch.log(torch.tensor(9.0)), requires_grad=True
         )
-        self.s_matrix = self.init_s_matrix()
-        self.b_matrix = torch.zeros_like(self.s_matrix)
+        self.register_parameter("logits", self.logits)
+
+        self.register_buffer("s_matrix", self.init_s_matrix())
+        self.register_buffer("b_matrix", torch.zeros_like(self.s_matrix))
+        self.compute_mask()
 
     def sample_s_matrix(self, eps: float = 1e-10) -> Tensor:
         """
@@ -205,14 +208,16 @@ class ContinuousMaskedLayer(MaskedLayer):
         self.temp = initial_temp
 
         self.s_matrix = self.init_s_matrix()
-        self.b_matrix = torch.zeros_like(self.s_matrix)
+        self.register_parameter("s_matrix", self.s_matrix)
+        self.register_buffer("b_matrix", torch.zeros_like(self.s_matrix))
+        self.compute_mask()
 
-    def init_s_matrix(self) -> Tensor:
+    def init_s_matrix(self) -> nn.Parameter:
         """
         Initializes the s_matrix with constant values.
 
         Returns:
-            Tensor: The s_matrix.
+            nn.Parameter: The s_matrix.
         """
         s_matrix = nn.Parameter(
             nn.init.constant_(
