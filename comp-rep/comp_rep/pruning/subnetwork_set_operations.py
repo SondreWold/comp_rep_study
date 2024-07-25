@@ -202,8 +202,8 @@ def binary_operation_by_layer_and_module(
     model_A: Transformer,
     model_B: Transformer,
     operation: Callable,
-    layer_idx: Optional[List[int]],
-    module_types: Optional[List[Type]],
+    layer_idx: Optional[List[int]] = None,
+    module_types: Optional[List[Type]] = None,
 ) -> Transformer:
     """
     Replaces the b_matrix of a MaskedLayer module with result of a binary set operation, at a specified layer and for a specific MaskedLayer type.
@@ -242,8 +242,8 @@ def binary_operation_by_layer_and_module(
 def union_by_layer_and_module(
     model_A: Transformer,
     model_B: Transformer,
-    layer_idx: Optional[List[int]],
-    module_types: Optional[List[Type]],
+    layer_idx: Optional[List[int]] = None,
+    module_types: Optional[List[Type]] = None,
 ):
     """
     Replaces the b_matix of model_A with the union of model_A and model_B at a specified layerfor a specificed type of module.
@@ -256,8 +256,8 @@ def union_by_layer_and_module(
 def intersection_by_layer_and_module(
     model_A: Transformer,
     model_B: Transformer,
-    layer_idx: Optional[List[int]],
-    module_types: Optional[List[Type]],
+    layer_idx: Optional[List[int]] = None,
+    module_types: Optional[List[Type]] = None,
 ):
     """
     Replaces the b_matix of model_A with the intersection of model_A and model_B at a specified layer for a specificed type of module.
@@ -270,8 +270,8 @@ def intersection_by_layer_and_module(
 def difference_by_layer_and_module(
     model_A: Transformer,
     model_B: Transformer,
-    layer_idx: Optional[List[int]],
-    module_types: Optional[List[Type]],
+    layer_idx: Optional[List[int]] = None,
+    module_types: Optional[List[Type]] = None,
 ):
     """
     Replaces the b_matix of model_A with the difference of model_A and model_B at a specified layer for a specificed type of module.
