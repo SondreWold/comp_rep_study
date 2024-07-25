@@ -76,16 +76,20 @@ class MaskedLayer(nn.Module, abc.ABC):
         """
         pass
 
-    def compute_remaining_weights(self) -> float:
+    def compute_remaining_weights(self, fraction: bool = True) -> float:
         """
         Computes and returns the percentage of remaining weights
 
         Returns:
             Tensor: The percentage of remaining weights
         """
-        below_zero = float((self.b_matrix <= 0).sum())
+        above_zero = float((self.b_matrix > 0).sum())
+
+        if not fraction:
+            return above_zero
+
         original = self.s_matrix.numel()
-        return 1 - below_zero / original
+        return above_zero / original
 
     @abc.abstractmethod
     def extra_repr(self) -> str:
