@@ -3,12 +3,15 @@ Subnetwork metrics
 """
 
 import copy
-from typing import List, Optional, Type
+from typing import List, Literal, Optional, Type
 
 from comp_rep.models.model import Transformer
 from comp_rep.pruning.masked_base import MaskedLayer
 from comp_rep.pruning.subnetwork_set_operations import intersection_, union_
-from comp_rep.utils import get_current_layer_from_module_name
+from comp_rep.utils import (
+    get_architecture_block_from_module_name,
+    get_current_layer_from_module_name,
+)
 
 
 def intersection_remaining_weights(
@@ -107,8 +110,131 @@ def intersection_over_minimum(
     return intersection_remaining_weights(masked_layers, fraction) / minimum_frac
 
 
+def intersection_remaining_weights_by_layer_and_module(
+    model_list: List[Transformer],
+    architecture_blocks: Optional[
+        List[Literal["encoder", "decoder", "projection"]]
+    ] = None,
+    layer_idx: Optional[List[int]] = None,
+    module_types: Optional[List[Type]] = None,
+    fraction: bool = False,
+) -> float:
+    """
+    Calculates the remaining weights of the intersection of dedicated layers and modules in a list of Transformer models.
+
+    Args:
+        model_list (List[Transformer]): A list of Transformer models.
+        architecture_blocks: (Optional[List[Literal["encoder", "decoder", "projection"]]]): The part of the network to consider.
+        layer_idx (Optional[List[int]]): A list of layer indices to consider. If None, all layers are considered.
+        module_types (Optional[List[Type]]): A list of module types to consider. If None, all module types are considered.
+        fraction (bool, optional): Whether to compute the fraction of remaining weights in the layer, or the sum. Defaults to False.
+
+    Returns:
+        float: The remaining weights for the intersection of specified layers and modules.
+
+    Raises:
+        AssertionError: If the model_list is empty.
+    """
+    assert len(model_list) > 0, f"Empty list of models: {model_list}!"
+
+    intersection_weights: List[float] = []
+    first_model = model_list[0]
+
+    for module_name, subnetwork in first_model.named_modules():
+        if isinstance(subnetwork, MaskedLayer):
+            if architecture_blocks:
+                architecture_block = get_architecture_block_from_module_name(
+                    module_name
+                )
+                if architecture_block not in architecture_blocks:
+                    continue
+
+            if layer_idx:
+                current_layer = get_current_layer_from_module_name(module_name)
+                if current_layer not in layer_idx:
+                    continue
+
+            if not module_types:  # If no type is specifed, compute for everything
+                module_types = [MaskedLayer]
+
+            for acceptable_type in module_types:
+                if isinstance(subnetwork, acceptable_type):
+                    masked_layers = [
+                        model.get_submodule(module_name) for model in model_list
+                    ]
+                    intersection_weights.append(
+                        intersection_remaining_weights(
+                            masked_layers, fraction  # type: ignore
+                        )
+                    )
+
+    return sum(intersection_weights) / len(intersection_weights)
+
+
+def union_remaining_weights_by_layer_and_module(
+    model_list: List[Transformer],
+    architecture_blocks: Optional[
+        List[Literal["encoder", "decoder", "projection"]]
+    ] = None,
+    layer_idx: Optional[List[int]] = None,
+    module_types: Optional[List[Type]] = None,
+    fraction: bool = False,
+) -> float:
+    """
+    Calculates the remaining weights of the union of dedicated layers and modules in a list of Transformer models.
+
+    Args:
+        model_list (List[Transformer]): A list of Transformer models.
+        architecture_blocks: (Optional[List[Literal["encoder", "decoder", "projection"]]]): The part of the network to consider.
+        layer_idx (Optional[List[int]]): A list of layer indices to consider. If None, all layers are considered.
+        module_types (Optional[List[Type]]): A list of module types to consider. If None, all module types are considered.
+        fraction (bool, optional): Whether to compute the fraction of remaining weights in the layer, or the sum. Defaults to False.
+
+    Returns:
+        float: The remaining weights for the union of specified layers and modules.
+
+    Raises:
+        AssertionError: If the model_list is empty.
+    """
+    assert len(model_list) > 0, f"Empty list of models: {model_list}!"
+
+    union_weights: List[float] = []
+    first_model = model_list[0]
+
+    for module_name, subnetwork in first_model.named_modules():
+        if isinstance(subnetwork, MaskedLayer):
+            if architecture_blocks:
+                architecture_block = get_architecture_block_from_module_name(
+                    module_name
+                )
+                if architecture_block not in architecture_blocks:
+                    continue
+
+            if layer_idx:
+                current_layer = get_current_layer_from_module_name(module_name)
+                if current_layer not in layer_idx:
+                    continue
+
+            if not module_types:  # If no type is specifed, compute for everything
+                module_types = [MaskedLayer]
+
+            for acceptable_type in module_types:
+                if isinstance(subnetwork, acceptable_type):
+                    masked_layers = [
+                        model.get_submodule(module_name) for model in model_list
+                    ]
+                    union_weights.append(
+                        union_remaining_weights(masked_layers, fraction)  # type: ignore
+                    )
+
+    return sum(union_weights) / len(union_weights)
+
+
 def iou_by_layer_and_module(
     model_list: List[Transformer],
+    architecture_blocks: Optional[
+        List[Literal["encoder", "decoder", "projection"]]
+    ] = None,
     layer_idx: Optional[List[int]] = None,
     module_types: Optional[List[Type]] = None,
     fraction: bool = False,
@@ -118,6 +244,7 @@ def iou_by_layer_and_module(
 
     Args:
         model_list (List[Transformer]): A list of Transformer models.
+        architecture_blocks: (Optional[List[Literal["encoder", "decoder", "projection"]]]): The part of the network to consider.
         layer_idx (Optional[List[int]]): A list of layer indices to consider. If None, all layers are considered.
         module_types (Optional[List[Type]]): A list of module types to consider. If None, all module types are considered.
         fraction (bool, optional): Whether to compute the fraction of remaining weights in the layer, or the sum. Defaults to False.
@@ -136,6 +263,13 @@ def iou_by_layer_and_module(
 
     for module_name, subnetwork in first_model.named_modules():
         if isinstance(subnetwork, MaskedLayer):
+            if architecture_blocks:
+                architecture_block = get_architecture_block_from_module_name(
+                    module_name
+                )
+                if architecture_block not in architecture_blocks:
+                    continue
+
             if layer_idx:
                 current_layer = get_current_layer_from_module_name(module_name)
                 if current_layer not in layer_idx:
@@ -150,15 +284,18 @@ def iou_by_layer_and_module(
                         model.get_submodule(module_name) for model in model_list
                     ]
                     intersection_weights += intersection_remaining_weights(
-                        masked_layers, fraction
+                        masked_layers, fraction  # type: ignore
                     )
-                    union_weights += union_remaining_weights(masked_layers, fraction)
+                    union_weights += union_remaining_weights(masked_layers, fraction)  # type: ignore
 
     return intersection_weights / union_weights
 
 
 def iom_by_layer_and_module(
     model_list: List[Transformer],
+    architecture_blocks: Optional[
+        List[Literal["encoder", "decoder", "projection"]]
+    ] = None,
     layer_idx: Optional[List[int]] = None,
     module_types: Optional[List[Type]] = None,
     fraction: bool = False,
@@ -168,6 +305,7 @@ def iom_by_layer_and_module(
 
     Args:
         model_list (List[Transformer]): A list of Transformer models.
+        architecture_blocks: (Optional[List[Literal["encoder", "decoder", "projection"]]]): The part of the network to consider.
         layer_idx (Optional[List[int]]): A list of layer indices to consider. If None, all layers are considered.
         module_types (Optional[List[Type]]): A list of module types to consider. If None, all module types are considered.
         fraction (bool, optional): Whether to compute the fraction of remaining weights in the layer, or the sum. Defaults to False.
@@ -185,10 +323,16 @@ def iom_by_layer_and_module(
     first_model = model_list[0]
     for module_name, subnetwork in first_model.named_modules():
         if isinstance(subnetwork, MaskedLayer):
+            if architecture_blocks:
+                architecture_block = get_architecture_block_from_module_name(
+                    module_name
+                )
+                if architecture_block not in architecture_blocks:
+                    continue
+
             if layer_idx:
                 current_layer = get_current_layer_from_module_name(module_name)
                 if current_layer not in layer_idx:
-                    print(current_layer)
                     continue
 
             if not module_types:  # If no type is specifed, compute for everything
@@ -200,7 +344,7 @@ def iom_by_layer_and_module(
                         model.get_submodule(module_name) for model in model_list
                     ]
                     intersection_weights += intersection_remaining_weights(
-                        masked_layers, fraction
+                        masked_layers, fraction  # type: ignore
                     )
                     weights = [
                         w_sum + masked_layer.compute_remaining_weights(fraction)
@@ -208,6 +352,50 @@ def iom_by_layer_and_module(
                     ]
 
     return intersection_weights / min(weights)
+
+
+def intersection_remaining_weights_models(
+    model_list: List[Transformer], fraction: bool = False
+) -> float:
+    """
+    Calculates the remaining weights for the intersection of all layers and modules in a list of Transformer models.
+
+    Args:
+        model_list (List[Transformer]): A list of Transformer models.
+        fraction (bool, optional): Whether to compute the fraction of remaining weights in the layer, or the sum. Defaults to False.
+
+    Returns:
+        float: The sum/fraction of remaining weights.
+
+    Raises:
+        AssertionError: If the model_list is empty.
+    """
+    assert len(model_list) > 0, f"Empty list of models: {model_list}!"
+    return intersection_remaining_weights_by_layer_and_module(
+        model_list=model_list, fraction=fraction
+    )
+
+
+def union_remaining_weights_models(
+    model_list: List[Transformer], fraction: bool = False
+) -> float:
+    """
+    Calculates the remaining weights for the union of all layers and modules in a list of Transformer models.
+
+    Args:
+        model_list (List[Transformer]): A list of Transformer models.
+        fraction (bool, optional): Whether to compute the fraction of remaining weights in the layer, or the sum. Defaults to False.
+
+    Returns:
+        float: The sum/fraction of remaining weights.
+
+    Raises:
+        AssertionError: If the model_list is empty.
+    """
+    assert len(model_list) > 0, f"Empty list of models: {model_list}!"
+    return union_remaining_weights_by_layer_and_module(
+        model_list=model_list, fraction=fraction
+    )
 
 
 def iou_models(model_list: List[Transformer], fraction: bool = False) -> float:

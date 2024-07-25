@@ -87,7 +87,11 @@ def test_union_by_layer_and_module(modelA, modelB):
     expected_result = torch.ones(modelA.hidden_size, modelA.hidden_size)
     unchanged_matrix = torch.triu(torch.ones(modelA.hidden_size, modelA.hidden_size))
     new_model = union_by_layer_and_module(
-        modelA, modelB, [1], [ContinuousMaskLayerNorm]
+        modelA,
+        modelB,
+        ["encoder", "decoder", "projection"],
+        [1],
+        [ContinuousMaskLayerNorm],
     )
 
     # Assert that the union works where it is supposed to
@@ -100,17 +104,65 @@ def test_union_by_layer_and_module(modelA, modelB):
     )
 
 
+def test_union_by_layer_and_module_encoder_only(modelA, modelB):
+    expected_result = torch.ones(modelA.hidden_size, modelA.hidden_size)
+    unchanged_matrix = torch.triu(torch.ones(modelA.hidden_size, modelA.hidden_size))
+    new_model = union_by_layer_and_module(
+        modelA, modelB, ["encoder"], [1], [ContinuousMaskLayerNorm]
+    )
+
+    # Assert that the union works where it is supposed to
+    assert torch.all(new_model.encoder.layers[1].norm_1.b_matrix == expected_result)
+
+    # Assert that the decoder layer is not affected
+    assert not torch.all(new_model.decoder.layers[1].norm_1.b_matrix == expected_result)
+
+    # Assert that the union is not applied in another layer
+    assert not torch.all(new_model.encoder.layers[0].norm_1.b_matrix == expected_result)
+
+    # Assert that no other module type is affected
+    assert torch.all(
+        new_model.encoder.layers[0].self_attention.query.b_matrix == unchanged_matrix
+    )
+
+
 def test_intersection_by_layer_and_module(modelA, modelB):
     expected_result = torch.zeros(modelA.hidden_size, modelA.hidden_size)
     unchanged_matrix = torch.triu(torch.ones(modelA.hidden_size, modelA.hidden_size))
     new_model = intersection_by_layer_and_module(
-        modelA, modelB, [1], [ContinuousMaskLayerNorm]
+        modelA,
+        modelB,
+        ["encoder", "decoder", "projection"],
+        [1],
+        [ContinuousMaskLayerNorm],
     )
 
     # Assert that the intersection works where it is supposed to
     assert torch.all(new_model.encoder.layers[1].norm_1.b_matrix == expected_result)
     # Assert that the intersection is not applied in another layer
     assert not torch.all(new_model.encoder.layers[0].norm_1.b_matrix == expected_result)
+    # Assert that no other module type is affected
+    assert torch.all(
+        new_model.encoder.layers[0].self_attention.query.b_matrix == unchanged_matrix
+    )
+
+
+def test_intersection_by_layer_and_module_encoder_only(modelA, modelB):
+    expected_result = torch.zeros(modelA.hidden_size, modelA.hidden_size)
+    unchanged_matrix = torch.triu(torch.ones(modelA.hidden_size, modelA.hidden_size))
+    new_model = intersection_by_layer_and_module(
+        modelA, modelB, ["encoder"], [1], [ContinuousMaskLayerNorm]
+    )
+
+    # Assert that the union works where it is supposed to
+    assert torch.all(new_model.encoder.layers[1].norm_1.b_matrix == expected_result)
+
+    # Assert that the decoder layer is not affected
+    assert not torch.all(new_model.decoder.layers[1].norm_1.b_matrix == expected_result)
+
+    # Assert that the union is not applied in another layer
+    assert not torch.all(new_model.encoder.layers[0].norm_1.b_matrix == expected_result)
+
     # Assert that no other module type is affected
     assert torch.all(
         new_model.encoder.layers[0].self_attention.query.b_matrix == unchanged_matrix
@@ -126,7 +178,11 @@ def test_difference_by_layer_and_module(modelA, modelC):
     expected_result = torch.tensor(full_triu_matrix)
 
     new_model = difference_by_layer_and_module(
-        modelA, modelC, [1], [ContinuousMaskLayerNorm]
+        modelA,
+        modelC,
+        ["encoder", "decoder", "projection"],
+        [1],
+        [ContinuousMaskLayerNorm],
     )
 
     # Assert that the difference works where it is supposed to
@@ -139,11 +195,42 @@ def test_difference_by_layer_and_module(modelA, modelC):
     )
 
 
+def test_difference_by_layer_and_module_encoder_only(modelA, modelC):
+    unchanged_matrix = torch.triu(torch.ones(modelA.hidden_size, modelA.hidden_size))
+    full_triu_matrix = torch.triu(
+        torch.ones(modelA.hidden_size, modelA.hidden_size)
+    ).tolist()
+    full_triu_matrix[0] = [0] * modelA.hidden_size
+    expected_result = torch.tensor(full_triu_matrix)
+
+    new_model = difference_by_layer_and_module(
+        modelA, modelC, ["encoder"], [1], [ContinuousMaskLayerNorm]
+    )
+
+    # Assert that the union works where it is supposed to
+    assert torch.all(new_model.encoder.layers[1].norm_1.b_matrix == expected_result)
+
+    # Assert that the decoder layer is not affected
+    assert not torch.all(new_model.decoder.layers[1].norm_1.b_matrix == expected_result)
+
+    # Assert that the union is not applied in another layer
+    assert not torch.all(new_model.encoder.layers[0].norm_1.b_matrix == expected_result)
+
+    # Assert that no other module type is affected
+    assert torch.all(
+        new_model.encoder.layers[0].self_attention.query.b_matrix == unchanged_matrix
+    )
+
+
 def test_union_at_two_layers(modelA, modelB):
     expected_result = torch.ones(modelA.hidden_size, modelA.hidden_size)
     unchanged_matrix = torch.triu(torch.ones(modelA.hidden_size, modelA.hidden_size))
     new_model = union_by_layer_and_module(
-        modelA, modelB, [2, 4], [ContinuousMaskLinear]
+        modelA,
+        modelB,
+        ["encoder", "decoder", "projection"],
+        [2, 4],
+        [ContinuousMaskLinear],
     )
 
     # Assert that the union works where it is supposed to

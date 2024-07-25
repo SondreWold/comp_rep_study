@@ -215,6 +215,18 @@ def save_list_to_csv(file_path: Path, data: List[str]) -> None:
             csvfile.write(item + "\n")
 
 
+def get_architecture_block_from_module_name(module_name: str) -> str:
+    """
+    Returns the encoder or decoder association from a torch.named_modules string
+    """
+    pattern = r"\b(encoder|decoder|projection)\b"
+    matches = re.findall(pattern, module_name)
+    assert (
+        len(matches) == 1
+    ), f"No 'encoder', 'decoder', or 'projection' in module name! Can not parse architecture block. {module_name}"
+    return matches[0]
+
+
 def get_current_layer_from_module_name(module_name: str) -> int:
     """
     Returns the layer number from a torch.named_modules string
