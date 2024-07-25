@@ -14,10 +14,12 @@ from comp_rep.pruning.masked_linear import ContinuousMaskLinear
 from comp_rep.pruning.subnetwork_metrics import (
     intersection_over_minimum,
     intersection_over_union,
+    intersection_remaining_weights_by_layer_and_module,
     iom_by_layer_and_module,
     iom_models,
     iou_by_layer_and_module,
     iou_models,
+    union_remaining_weights_by_layer_and_module,
 )
 from comp_rep.pruning.subnetwork_set_operations import complement_
 
@@ -214,6 +216,210 @@ def test_intersection_over_minimum(continuous_linear):
     assert iou_value == 0
 
 
+def test_intersection_remaining_weights_by_layer_and_module(modelA, modelB):
+    # set modelA
+    model_a_linear_b_matrix1 = torch.tensor(
+        [
+            [0, 1, 0, 1],
+            [1, 0, 1, 0],
+        ]
+    )
+    model_a_layernorm_b_matrix1 = torch.tensor(
+        [
+            [0, 1],
+        ]
+    )
+    modelA.layers[0].b_matrix = model_a_linear_b_matrix1
+    modelA.layers[1].b_matrix = model_a_layernorm_b_matrix1
+
+    model_a_linear_b_matrix2 = torch.tensor(
+        [
+            [0, 1],
+            [1, 0],
+        ]
+    )
+    model_a_layernorm_b_matrix2 = torch.tensor(
+        [
+            [0, 1],
+        ]
+    )
+    modelA.layers[2].b_matrix = model_a_linear_b_matrix2
+    modelA.layers[3].b_matrix = model_a_layernorm_b_matrix2
+
+    # set modelB
+    model_b_linear_b_matrix1 = torch.tensor(
+        [
+            [0, 0, 0, 1],
+            [1, 0, 1, 0],
+        ]
+    )
+    model_b_layernorm_b_matrix1 = torch.tensor(
+        [
+            [1, 0],
+        ]
+    )
+    modelB.layers[0].b_matrix = model_b_linear_b_matrix1
+    modelB.layers[1].b_matrix = model_b_layernorm_b_matrix1
+
+    model_b_linear_b_matrix2 = torch.tensor(
+        [
+            [0, 0],
+            [1, 0],
+        ]
+    )
+    model_b_layernorm_b_matrix2 = torch.tensor(
+        [
+            [1, 0],
+        ]
+    )
+    modelB.layers[2].b_matrix = model_b_linear_b_matrix2
+    modelB.layers[3].b_matrix = model_b_layernorm_b_matrix2
+
+    # check identity for all layers
+    layer_idx = [0, 1, 2, 3]
+    module_types = [MaskedLayer]
+    iou = intersection_remaining_weights_by_layer_and_module(
+        [modelA],
+        layer_idx=layer_idx,
+        module_types=module_types,
+        fraction=True,
+    )
+    assert iou == (4 / 8 + 1 / 2 + 2 / 4 + 1 / 2) / 4
+
+    # check identity for some types
+    layer_idx = [0, 1, 2, 3]
+    module_types = [ContinuousMaskLinear]
+    iou = intersection_remaining_weights_by_layer_and_module(
+        [modelA], layer_idx=layer_idx, module_types=module_types, fraction=True
+    )
+    assert iou == (4 / 8 + 2 / 4) / 2
+
+    # check fraction
+    layer_idx = [0]
+    module_types = [ContinuousMaskLinear]
+    iou = intersection_remaining_weights_by_layer_and_module(
+        [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
+    )
+    assert iou == 3 / 8
+
+    layer_idx = [0, 1, 2, 3]
+    module_types = [ContinuousMaskLinear]
+    iou = intersection_remaining_weights_by_layer_and_module(
+        [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
+    )
+    assert iou == (3 / 8 + 1 / 4) / 2
+
+    # check sum
+    layer_idx = [0, 1, 2, 3]
+    module_types = [ContinuousMaskLinear]
+    iou = intersection_remaining_weights_by_layer_and_module(
+        [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=False
+    )
+    assert iou == (3 + 1) / 2
+
+
+def test_union_remaining_weights_by_layer_and_module(modelA, modelB):
+    # set modelA
+    model_a_linear_b_matrix1 = torch.tensor(
+        [
+            [0, 1, 0, 1],
+            [1, 0, 1, 0],
+        ]
+    )
+    model_a_layernorm_b_matrix1 = torch.tensor(
+        [
+            [0, 1],
+        ]
+    )
+    modelA.layers[0].b_matrix = model_a_linear_b_matrix1
+    modelA.layers[1].b_matrix = model_a_layernorm_b_matrix1
+
+    model_a_linear_b_matrix2 = torch.tensor(
+        [
+            [0, 1],
+            [1, 0],
+        ]
+    )
+    model_a_layernorm_b_matrix2 = torch.tensor(
+        [
+            [0, 1],
+        ]
+    )
+    modelA.layers[2].b_matrix = model_a_linear_b_matrix2
+    modelA.layers[3].b_matrix = model_a_layernorm_b_matrix2
+
+    # set modelB
+    model_b_linear_b_matrix1 = torch.tensor(
+        [
+            [0, 0, 0, 1],
+            [1, 0, 1, 0],
+        ]
+    )
+    model_b_layernorm_b_matrix1 = torch.tensor(
+        [
+            [1, 0],
+        ]
+    )
+    modelB.layers[0].b_matrix = model_b_linear_b_matrix1
+    modelB.layers[1].b_matrix = model_b_layernorm_b_matrix1
+
+    model_b_linear_b_matrix2 = torch.tensor(
+        [
+            [0, 0],
+            [1, 0],
+        ]
+    )
+    model_b_layernorm_b_matrix2 = torch.tensor(
+        [
+            [1, 0],
+        ]
+    )
+    modelB.layers[2].b_matrix = model_b_linear_b_matrix2
+    modelB.layers[3].b_matrix = model_b_layernorm_b_matrix2
+
+    # check identity for all layers
+    layer_idx = [0, 1, 2, 3]
+    module_types = [MaskedLayer]
+    iou = union_remaining_weights_by_layer_and_module(
+        [modelA],
+        layer_idx=layer_idx,
+        module_types=module_types,
+        fraction=True,
+    )
+    assert iou == (4 / 8 + 1 / 2 + 2 / 4 + 1 / 2) / 4
+
+    # check identity for some types
+    layer_idx = [0, 1, 2, 3]
+    module_types = [ContinuousMaskLinear]
+    iou = union_remaining_weights_by_layer_and_module(
+        [modelA], layer_idx=layer_idx, module_types=module_types, fraction=True
+    )
+    assert iou == (4 / 8 + 2 / 4) / 2
+
+    # check fraction
+    layer_idx = [0]
+    module_types = [ContinuousMaskLinear]
+    iou = union_remaining_weights_by_layer_and_module(
+        [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
+    )
+    assert iou == 4 / 8
+
+    layer_idx = [0, 1, 2, 3]
+    module_types = [ContinuousMaskLinear]
+    iou = union_remaining_weights_by_layer_and_module(
+        [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
+    )
+    assert iou == (4 / 8 + 2 / 4) / 2
+
+    # check sum
+    layer_idx = [0, 1, 2, 3]
+    module_types = [ContinuousMaskLinear]
+    iou = union_remaining_weights_by_layer_and_module(
+        [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=False
+    )
+    assert iou == (4 + 2) / 2
+
+
 def test_iou_by_layer_and_module(modelA, modelB):
     # set modelA
     model_a_linear_b_matrix1 = torch.tensor(
@@ -278,8 +484,8 @@ def test_iou_by_layer_and_module(modelA, modelB):
     module_types = [MaskedLayer]
     iou = iou_by_layer_and_module(
         [modelA],
-        layer_idx,
-        module_types,
+        layer_idx=layer_idx,
+        module_types=module_types,
     )
     assert iou == 1
 
@@ -288,8 +494,8 @@ def test_iou_by_layer_and_module(modelA, modelB):
     module_types = [ContinuousMaskLinear]
     iou = iou_by_layer_and_module(
         [modelA],
-        layer_idx,
-        module_types,
+        layer_idx=layer_idx,
+        module_types=module_types,
     )
     assert iou == 1
 
@@ -297,14 +503,14 @@ def test_iou_by_layer_and_module(modelA, modelB):
     layer_idx = [0]
     module_types = [ContinuousMaskLinear]
     iou = iou_by_layer_and_module(
-        [modelA, modelB], layer_idx, module_types, fraction=True
+        [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
     assert iou == 3 / 4
 
     layer_idx = [0, 1, 2, 3]
     module_types = [ContinuousMaskLinear]
     iou = iou_by_layer_and_module(
-        [modelA, modelB], layer_idx, module_types, fraction=True
+        [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
     assert iou == (3 / 8 + 1 / 4) / (4 / 8 + 2 / 4)
 
@@ -312,7 +518,7 @@ def test_iou_by_layer_and_module(modelA, modelB):
     layer_idx = [0, 1, 2, 3]
     module_types = [ContinuousMaskLinear]
     iou = iou_by_layer_and_module(
-        [modelA, modelB], layer_idx, module_types, fraction=False
+        [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=False
     )
     assert iou == (3 + 1) / (4 + 2)
 
@@ -381,8 +587,8 @@ def test_iom_by_layer_and_module(modelA, modelB):
     module_types = [MaskedLayer]
     iou = iom_by_layer_and_module(
         [modelA],
-        layer_idx,
-        module_types,
+        layer_idx=layer_idx,
+        module_types=module_types,
     )
     assert iou == 1
 
@@ -391,8 +597,8 @@ def test_iom_by_layer_and_module(modelA, modelB):
     module_types = [ContinuousMaskLinear]
     iou = iom_by_layer_and_module(
         [modelA],
-        layer_idx,
-        module_types,
+        layer_idx=layer_idx,
+        module_types=module_types,
     )
     assert iou == 1
 
@@ -400,14 +606,14 @@ def test_iom_by_layer_and_module(modelA, modelB):
     layer_idx = [0]
     module_types = [ContinuousMaskLinear]
     iou = iom_by_layer_and_module(
-        [modelA, modelB], layer_idx, module_types, fraction=True
+        [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
     assert iou == 1
 
     layer_idx = [0, 1, 2, 3]
     module_types = [ContinuousMaskLinear]
     iou = iom_by_layer_and_module(
-        [modelA, modelB], layer_idx, module_types, fraction=True
+        [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
     assert iou == (3 / 8 + 1 / 4) / (3 / 8 + 1 / 4)
 
@@ -415,7 +621,7 @@ def test_iom_by_layer_and_module(modelA, modelB):
     layer_idx = [0, 1, 2, 3]
     module_types = [ContinuousMaskLinear]
     iou = iom_by_layer_and_module(
-        [modelA, modelB], layer_idx, module_types, fraction=False
+        [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=False
     )
     assert iou == (3 + 1) / (3 + 1)
 
