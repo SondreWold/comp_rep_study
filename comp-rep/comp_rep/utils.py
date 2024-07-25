@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import random
+import re
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -230,6 +231,9 @@ def get_current_layer_from_module_name(module_name: str) -> int:
     if "layers" not in module_name:
         return -1  # Projection or output norm layers
     else:
-        parts = module_name.split(".")
-        layer_number = int(parts[2])
-        return layer_number
+        pattern = r"\.\d+"
+        matches = re.findall(pattern, module_name)
+        assert (
+            len(matches) == 1
+        ), f"Ambiguous module name! Can not parse layer index. {module_name}"
+        return int(matches[0][-1])
