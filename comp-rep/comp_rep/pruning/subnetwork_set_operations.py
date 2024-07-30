@@ -3,13 +3,16 @@ Subnetwork set operations
 """
 
 import copy
-from typing import Callable, List, Optional, Type
+from typing import Callable, List, Literal, Optional, Type
 
 import torch
 
 from comp_rep.models.model import Transformer
 from comp_rep.pruning.masked_base import MaskedLayer
-from comp_rep.utils import get_current_layer_from_module_name
+from comp_rep.utils import (
+    get_architecture_block_from_module_name,
+    get_current_layer_from_module_name,
+)
 
 
 def complement_(subnetwork: MaskedLayer):
@@ -202,6 +205,9 @@ def binary_operation_by_layer_and_module(
     model_A: Transformer,
     model_B: Transformer,
     operation: Callable,
+    architecture_blocks: Optional[
+        List[Literal["encoder", "decoder", "projection"]]
+    ] = None,
     layer_idx: Optional[List[int]] = None,
     module_types: Optional[List[Type]] = None,
 ) -> Transformer:
@@ -212,6 +218,7 @@ def binary_operation_by_layer_and_module(
         model_A (Transformer): The model to replace the b_matrix of
         model_B (Transformer): The model to calculate the canghe of b_matrix with
         operation (Callable): The set operation to perform
+        architecture_blocks: (Optional[List[Literal["encoder", "decoder", "projection"]]]): The part of the network to consider.
         layer_idx (Optional[List[int]]): The layers of the model to perform the replacement in. Adding -1 adds the non-layered objects to the list, e.g output norms and projection layer.
         module_types (Optional[List[Type]]: The type of MaskedModule to perform the replacement in
 
@@ -223,6 +230,11 @@ def binary_operation_by_layer_and_module(
         model_A.named_modules(), model_B.named_modules()
     ):
         if isinstance(sub_A, MaskedLayer) and isinstance(sub_B, MaskedLayer):
+            if architecture_blocks:
+                architecture_block = get_architecture_block_from_module_name(name_A)
+                if architecture_block not in architecture_blocks:
+                    continue
+
             if layer_idx:
                 current_layer = get_current_layer_from_module_name(name_A)
                 if current_layer not in layer_idx:
@@ -242,6 +254,9 @@ def binary_operation_by_layer_and_module(
 def union_by_layer_and_module(
     model_A: Transformer,
     model_B: Transformer,
+    architecture_blocks: Optional[
+        List[Literal["encoder", "decoder", "projection"]]
+    ] = None,
     layer_idx: Optional[List[int]] = None,
     module_types: Optional[List[Type]] = None,
 ):
@@ -249,13 +264,16 @@ def union_by_layer_and_module(
     Replaces the b_matix of model_A with the union of model_A and model_B at a specified layerfor a specificed type of module.
     """
     return binary_operation_by_layer_and_module(
-        model_A, model_B, union_, layer_idx, module_types
+        model_A, model_B, union_, architecture_blocks, layer_idx, module_types
     )
 
 
 def intersection_by_layer_and_module(
     model_A: Transformer,
     model_B: Transformer,
+    architecture_blocks: Optional[
+        List[Literal["encoder", "decoder", "projection"]]
+    ] = None,
     layer_idx: Optional[List[int]] = None,
     module_types: Optional[List[Type]] = None,
 ):
@@ -263,13 +281,16 @@ def intersection_by_layer_and_module(
     Replaces the b_matix of model_A with the intersection of model_A and model_B at a specified layer for a specificed type of module.
     """
     return binary_operation_by_layer_and_module(
-        model_A, model_B, intersection_, layer_idx, module_types
+        model_A, model_B, intersection_, architecture_blocks, layer_idx, module_types
     )
 
 
 def difference_by_layer_and_module(
     model_A: Transformer,
     model_B: Transformer,
+    architecture_blocks: Optional[
+        List[Literal["encoder", "decoder", "projection"]]
+    ] = None,
     layer_idx: Optional[List[int]] = None,
     module_types: Optional[List[Type]] = None,
 ):
@@ -277,5 +298,5 @@ def difference_by_layer_and_module(
     Replaces the b_matix of model_A with the difference of model_A and model_B at a specified layer for a specificed type of module.
     """
     return binary_operation_by_layer_and_module(
-        model_A, model_B, difference_, layer_idx, module_types
+        model_A, model_B, difference_, architecture_blocks, layer_idx, module_types
     )
