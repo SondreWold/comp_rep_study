@@ -134,6 +134,7 @@ def run_eval(model, tokenizer, functions):
         )
         searcher = GreedySearch(model, eval_dataset.output_language)
         accuracy = evaluate_generation(model, searcher, eval_loader, Path(""), DEVICE)
+        print(f"{function}: {accuracy}")
         res.append(accuracy)
     return res
 
