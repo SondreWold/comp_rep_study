@@ -66,7 +66,7 @@ def create_e_prime(path: Path):
     Returns:
         Transformer: the glue that holds it all together
     """
-    E_prime: Transformer = None
+    E_prime = None
     for idx, circuit in enumerate(iterate_subfolders(path)):
         print(f"Intersecting: {circuit}")
         model_path = circuit / "continuous_pruned_model.ckpt"
@@ -317,6 +317,7 @@ def main() -> None:
 
     # T_prime
     temp_step = difference_model(model_m, model_b)
+    temp_step = union_model(temp_step, model_b)
     T_prime = union_model(temp_step, E_prime)
     result = run_eval(T_prime, tokenizer, MASK_TASKS)
 
