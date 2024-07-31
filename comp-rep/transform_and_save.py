@@ -5,9 +5,11 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 
+from comp_rep.constants import MASK_TASKS
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
 from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.evaluator import evaluate_generation
+from comp_rep.models.model import Transformer
 from comp_rep.pruning.masked_base import MaskedLayer
 from comp_rep.pruning.masked_layernorm import ContinuousMaskLayerNorm
 from comp_rep.pruning.masked_linear import ContinuousMaskLinear
@@ -21,11 +23,15 @@ from comp_rep.pruning.subnetwork_metrics import (
 from comp_rep.pruning.subnetwork_set_operations import (
     complement_model,
     difference_by_layer_and_module,
+    difference_model,
     intersection_by_layer_and_module,
+    intersection_model,
     union_by_layer_and_module,
+    union_model,
 )
 from comp_rep.utils import (
     create_transformer_from_checkpoint,
+    iterate_subfolders,
     load_model,
     load_tokenizer,
 )
@@ -50,6 +56,29 @@ def create_empty_set_model(reference_model):
     return model
 
 
+def create_e_prime(path: Path):
+    """
+    Takes the intersection of all the circuits located at path (folder).
+
+    Args:
+        path (Path): The folder which holds all the individual circuits
+
+    Returns:
+        Transformer: the glue that holds it all together
+    """
+    E_prime: Transformer = None
+    for idx, circuit in enumerate(iterate_subfolders(path)):
+        print(f"Intersecting: {circuit}")
+        model_path = circuit / "continuous_pruned_model.ckpt"
+        model = create_transformer_from_checkpoint(model_path)
+        model = load_model(model_path, True, model)
+        if idx == 0:
+            E_prime = model
+        else:
+            E_prime = intersection_model(E_prime, model)
+    return E_prime
+
+
 def parse_args() -> argparse.Namespace:
     """
     Parse command-line arguments for the evaluation script.
@@ -68,9 +97,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output_path", type=Path, help="Path to save the transformed model"
     )
+    parser.add_argument(
+        "--circuit_folder", type=Path, help="Path to the saved circuits"
+    )
     parser.add_argument("--model_a", type=Path, help="Path to the saved model A")
     parser.add_argument("--model_b", type=Path, help="Path to the saved model B")
     parser.add_argument("--model_c", type=Path, help="Path to the saved model C")
+    parser.add_argument(
+        "--base_model", type=Path, help="Path to the base model circuit"
+    )
     parser.add_argument(
         "--operation",
         type=str,
@@ -217,6 +252,42 @@ def compare_models(model_1, model_2, layers):
     return results
 
 
+def get_layer_fractions(E_prime, layers):
+    results = {}
+    for architecture_block in ["encoder", "decoder"]:
+        for current_layer_iterator in layers:
+            fraction_linear = intersection_remaining_weights_by_layer_and_module(
+                [E_prime],
+                [architecture_block],
+                [current_layer_iterator],
+                [ContinuousMaskLinear],
+                True,
+            )
+            fraction_norm = intersection_remaining_weights_by_layer_and_module(
+                [E_prime],
+                [architecture_block],
+                [current_layer_iterator],
+                [ContinuousMaskLayerNorm],
+                True,
+            )
+            results[f"{architecture_block[0].upper()}_{current_layer_iterator}"] = {
+                "fraction_linear": fraction_linear,
+                "fraction_norm": fraction_norm,
+            }
+    fraction_linear = intersection_remaining_weights_by_layer_and_module(
+        [E_prime], ["projection"], None, [ContinuousMaskLinear], True
+    )
+    try:
+        fraction_norm = intersection_remaining_weights_by_layer_and_module(
+            [E_prime], ["projection"], None, [ContinuousMaskLayerNorm], True
+        )
+    except:
+        fraction_norm = 0.0
+    results["projection_linear"] = fraction_linear
+    results["projection_norm"] = fraction_norm
+    return results
+
+
 def main() -> None:
     args = parse_args()
     # Example: a: copy_echo, b: copy, c:echo
@@ -238,40 +309,20 @@ def main() -> None:
     all_arch = None
     all_types = None
 
+    E_prime = create_e_prime(args.circuit_folder)
+
+    model_m_path = args.base_model / f"{args.pruning_method}_pruned_model.ckpt"
+    model_m = create_transformer_from_checkpoint(model_m_path)
+    model_m = load_model(model_m_path, True, model_m)
+
+    # T_prime
+    temp_step = difference_model(model_m, model_b)
+    T_prime = union_model(temp_step, E_prime)
+    result = run_eval(T_prime, tokenizer, MASK_TASKS)
+
     overlap_result = {}
-
-    overlap_result[f"{model_a_name}"] = run_eval(model_a, tokenizer, functions)
-    overlap_result[f"{model_b_name}"] = run_eval(model_b, tokenizer, functions)
-    overlap_result[f"{model_c_name}"] = run_eval(model_c, tokenizer, functions)
-
-    # B UNION C UNION A
-    """
-    a_union_b_model = union_by_layer_and_module(model_a, model_b, None, None, None) 
-    res_union_c_model = union_by_layer_and_module(a_union_b_model, model_c, None, None, None) 
-    overlap_result[f"a_u_b_u_c"] = run_eval(res_union_c_model, tokenizer, functions)
-
-
-    b_union_c_model = union_by_layer_and_module(model_b, model_c, None, None, None) 
-    overlap_result[f"{model_b_name}+{model_c_name}"] = run_eval(b_union_c_model, tokenizer, functions)
-
-    # C UNION B
-    c_union_b_model = union_by_layer_and_module(model_c, model_b, None, None, None)
-    overlap_result[f"{model_c_name}+{model_b_name}"] = run_eval(c_union_b_model, tokenizer, functions)
-    c_union_b_model = union_by_layer_and_module(model_c, model_b, None, None, None)
-    overlap_result[f"{model_c_name}"] = run_eval(model_c, tokenizer, functions)
-    
-    c_union_b_model_diff_b = union_by_layer_and_module(c_union_b_model, model_b, None, None, None)
-    overlap_result[f"{model_c_name}+{model_b_name}-{model_b_name}"] = run_eval(c_union_b_model_diff_b, tokenizer, functions)
-    # A - B
-    a_difference_b_model = difference_by_layer_and_module(model_a, model_b, None, None, [ContinuousMaskLinear])
-    overlap_result[f"{model_a_name}-{model_b_name}"] = run_eval(a_difference_b_model, tokenizer, functions)
-
-    # A - C
-    a_difference_c_model = difference_by_layer_and_module(model_a, model_c, None, None, [ContinuousMaskLinear])
-    overlap_result[f"{model_a_name}-{model_c_name}"] = run_eval(a_difference_c_model, tokenizer, functions)
-    """
-
-    output_path = f"single_models.json"
+    overlap_result["T_prime"] = result
+    output_path = f"t_prime.json"
     json_dict = json.dumps(overlap_result)
     with open(output_path, "w") as f:
         f.write(json_dict)

@@ -9,7 +9,7 @@ import os
 import random
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 import numpy as np
 import torch
@@ -249,3 +249,20 @@ def get_current_layer_from_module_name(module_name: str) -> int:
             len(matches) == 1
         ), f"Ambiguous module name! Can not parse layer index. {module_name}"
         return int(matches[0][-1])
+
+
+def iterate_subfolders(root_folder: Path) -> Iterable:
+    """
+    Utility function for iterating over subfolders (for circuits)
+
+    Args:
+        root_folder (Path)
+
+    Returns:
+        Iterable
+    """
+
+    root_path = Path(root_folder)
+    for item in root_path.iterdir():
+        if item.is_dir():
+            yield item
