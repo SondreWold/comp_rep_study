@@ -85,7 +85,7 @@ $M$ and $echo$ has some overlap. Specifically:
 
 **Removing both linear and layernorms per layer:**
 
-| Layer | Accuracy on echo |
+| Layer(s) removed | Accuracy on echo |
 |----------|----------|
 | 0 | 0.0 |
 | 1 | 0.375 |
@@ -93,6 +93,14 @@ $M$ and $echo$ has some overlap. Specifically:
 | 3 | 1.0 |
 | 4 | 0.968 |
 | 5 | 1.0 |
+| ---- | ---- |
+| 1, 2, 3, 4, 5 | 0.0 |
+| 2, 3, 4, 5 | 0.145 |
+| 3, 4, 5 | 0.56 |
+| 4, 5 | 0.687 |
+| 2, 3, 4 | 0.70 |
+| 3, 4 | 0.976 |
+
 
 **Removing just the linear**
 
@@ -115,3 +123,9 @@ $M$ and $echo$ has some overlap. Specifically:
 | 3 | 1.0 |
 | 4 | 1.0 |
 | 5 | 1.0 |
+
+
+### Findings
+
+It is clear that the first two layers are the most crucial to the performance, even when you consider the fact the these are also the most shared. Removing layers 2, 3, 4, and 5 from $M$ by the difference with $echo$, is less deterimental to the performance than removing just the first layer.
+Similarily, the final layer is also important, or put in another way: the middle layers do not do much: removing layer 2, 3 and 4 still gets a performance of 70%. 
