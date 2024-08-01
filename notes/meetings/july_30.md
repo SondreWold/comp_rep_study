@@ -129,3 +129,22 @@ $M$ and $echo$ has some overlap. Specifically:
 
 It is clear that the first two layers are the most crucial to the performance, even when you consider the fact the these are also the most shared. Removing layers 2, 3, 4, and 5 from $M$ by the difference with $echo$, is less deterimental to the performance than removing just the first layer.
 Similarily, the final layer is also important, or put in another way: the middle layers do not do much: removing layer 2, 3 and 4 still gets a performance of 70%. 
+
+# Experiment 4
+
+### Motivation
+
+Is $C$ the only subspace of $M$ than can solve $c$? Can we find another subspace of $M$ that does $c$? This might also explain some of the results we are seeing.
+
+Our masks "picks out" a set of the original parameter space that can solve a task, e.g it finds a combination of parameters C that can approximate the same linear transformation as the original. It does not follow from this that C is the only set of parameters that can solve the same task.
+
+A neural network is a learned transformation that maps inputs to outputs $F_\theta: x \rightarrow y$. If we can find multiple sparse masks over $\theta$ that can do this transformation, then the mask is essentially learning a sparse approximation of the function. This approximation does not have to be unique, which questions the idea of a circuit. 
+
+Idea: Can we find another C circuit that is different than C? We can artificailly inhibit C, and then try to find C prime?
+
+
+### Method
+
+Train three different masks for $copy$ with the same regularization but with different seeds and learning rates and initial mask value and see to which extent these models overlap (and if the all solve the task).
+
+### Findings
