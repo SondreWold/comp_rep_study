@@ -147,7 +147,7 @@ $M$ and $echo$ has some overlap. Specifically:
 It is clear that the first two layers are the most crucial to the performance, even when you consider the fact the these are also the most shared. Removing layers 2, 3, 4, and 5 from $M$ by the difference with $echo$, is less deterimental to the performance than removing just the first layer.
 Similarily, the final layer is also important, or put in another way: the middle layers do not do much: removing layer 2, 3 and 4 still gets a performance of 70%. 
 
-Also: removing the third and fourth layer of echo from the 
+Also: removing the third and fourth layer of echo from the base model hurts performance over multiple tasks.
 
 # Experiment 4
 
