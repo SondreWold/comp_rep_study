@@ -85,7 +85,7 @@ $M$ and $echo$ has some overlap. Specifically:
 
 **Removing both linear and layernorms per layer:**
 
-| Layer(s) removed | Accuracy on echo |
+| Layer(s) removed | Accuracy on copy |
 |----------|----------|
 | 0 | 0.0 |
 | 1 | 0.375 |
@@ -104,7 +104,7 @@ $M$ and $echo$ has some overlap. Specifically:
 
 **Removing just the linear**
 
-| Layer | Accuracy on echo |
+| Layer | Accuracy on copy |
 |----------|----------|
 | 0 | 0.687 |
 | 1 | 0.468 |
@@ -115,7 +115,7 @@ $M$ and $echo$ has some overlap. Specifically:
 
 **Removing just the norms**
 
-| Layer | Accuracy on echo |
+| Layer | Accuracy on copy |
 |----------|----------|
 | 0 | 0.0 |
 | 1 | 0.5 |
@@ -125,10 +125,29 @@ $M$ and $echo$ has some overlap. Specifically:
 | 5 | 1.0 |
 
 
+**$M - echo$: Removing layers and norms and evaluating across tasks**
+
+| Layer(s) | copy | echo | repeat | 
+|----------|----------| ----------| ----------|
+| base_model | 1.0 | 1.0 | 0.983 |
+| 0 | 0.0 | 0.0 | 0.0 |
+| 3, 4 | 0.976 | 0.835 | 0.8 |
+
+**$M - copy$: Removing layers and norms and evaluating across tasks**
+
+| Layer(s) | copy | echo | repeat | 
+|----------|----------| ----------| ----------|
+| base_model | 1.0 | 1.0 | 0.983 |
+| 0 | 0.07 | 0.015 | 0.0 |
+| 3, 4 | 0.976 | 0.898 | 0.82 |
+
+
 ### Findings
 
 It is clear that the first two layers are the most crucial to the performance, even when you consider the fact the these are also the most shared. Removing layers 2, 3, 4, and 5 from $M$ by the difference with $echo$, is less deterimental to the performance than removing just the first layer.
 Similarily, the final layer is also important, or put in another way: the middle layers do not do much: removing layer 2, 3 and 4 still gets a performance of 70%. 
+
+Also: removing the third and fourth layer of echo from the 
 
 # Experiment 4
 
