@@ -53,3 +53,12 @@ $\hat{T} = M - C + \hat{E}$, with $M$ being the base model.
 If $\hat{T}$ now can still do all the atomic tasks, except $C$, then the network is compositional.
 
 If $\hat{T}$ now fails for other tasks than $C$, then this supports the cancel hypothesis. 
+
+### Findings:
+
+$\hat{T} = M - C + \hat{E}$ fails on all tasks.
+
+$f_i - \hat{E}$ also fails on all tasks.
+
+This indicate that the base model has not learned a compositional solution to the problem. 
+
