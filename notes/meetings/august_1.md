@@ -25,4 +25,11 @@ Philipp and Sondre
   - If $x_c:M \rightarrow y_c$ and $x_c:C \rightarrow y_c$, then removing C from M destroys the transformation. Adding C, and even $\hat{E}$, does not that recover that.
   - Now if also $x_e:M \rightarrow y_e$ and $x_e:E \rightarrow y_e$
   - We know that $x_{ec}:M \rightarrow y_{ec}$, so can we combine C and E to construct the circuit X that does $x_{ec}:X \rightarrow y_{ec}$? Or: is the CE circuit a linear combination of C and E?
-    
+  - Our plan for testing this is to per layer $l$:
+    - Solve the linear combination: $\alpha \times C_{bmatrix}^l + \beta \times E_{bmatrix}^l = CE_{bmatrix}^l $
+  - We can also take the union of C and E and then prune on CE, only allowing removal of items, not adding new ones. This would be a learned global solution to the overall mapping. If you cant do this, then there is no linear combination, we think. If it is, then the composition is way more complicated than a mask union. 
+
+# Timeline
+- Next week we do this
+- Then two weeks break
+- We pick up in the end of august.
