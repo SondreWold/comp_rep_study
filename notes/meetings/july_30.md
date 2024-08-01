@@ -81,6 +81,7 @@ This "something" might not be distributed equally across the layers. What happen
 $M$ and $echo$ has some overlap. Specifically:
 - In the five first layers, the encoder layernorms are completely shared. The decoder norms are also shared to a great extent.
 - In all layers for both the encoder and decoder, there is little sharing between the linear layers, which are also extremely sparse (between 0.0 and 0.002).
+![base_echo_fraction](./figures/base_VS_echo_fraction.png)
 
 
 **Removing both linear and layernorms per layer:**
