@@ -79,7 +79,6 @@ Each circuit contains something that is unique to that circuit but which is also
 This "something" might not be distributed equally across the layers. What happens if we only take the difference layer and component wise?
 
 $M$ and $echo$ has some overlap. Specifically:
-- In the five first layers, the encoder layernorms are completely shared. The decoder norms are also shared to a great extent.
 - In all layers for both the encoder and decoder, there is little sharing between the linear layers, which are also extremely sparse.
 ![base_echo_fraction](./figures/base_VS_echo_fraction.png)
 
