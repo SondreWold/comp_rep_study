@@ -167,3 +167,7 @@ Idea: Can we find another C circuit that is different than C? We can artificaill
 Train three different masks for $copy$ with the same regularization but with different seeds and learning rates and initial mask value and see to which extent these models overlap (and if the all solve the task).
 
 ### Findings
+
+Two the masks converged to a solution that works, meaning they achieve 100% eval accuracy and with a low number of remaining weights (~8 and ~10%).
+
+Although the two networks are more similar than previous comparisons, they are still distinct circuits‚ the intersection over fraction for the linears are close to 0% and the overlap is around 50% on average across layers.
