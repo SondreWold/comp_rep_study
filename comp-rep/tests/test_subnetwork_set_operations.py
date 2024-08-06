@@ -15,6 +15,8 @@ from comp_rep.pruning.subnetwork_set_operations import (
     difference_model_,
     intersection_model,
     intersection_model_,
+    sum_model,
+    sum_model_,
     union_model,
     union_model_,
 )
@@ -524,3 +526,199 @@ def test_difference(modelA, modelB):
     # new_model
     assert (new_model.linear_layer.b_matrix == target_linear_b_matrix).all()
     assert (new_model.norm_layer.b_matrix == target_layernorm_b_matrix).all()
+
+
+def test_sum_(modelA, modelB):
+    # set modelA
+    model_a_linear_b_matrix = torch.tensor(
+        [
+            [0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
+            [1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+            [0, 0, 1, 1, 0, 0, 1, 1, 0, 0],
+            [1, 1, 0, 0, 1, 1, 0, 0, 1, 1],
+            [0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
+        ]
+    )
+    model_a_layernorm_b_matrix = torch.tensor(
+        [
+            [1, 1, 0, 1, 0],
+        ]
+    )
+    modelA.linear_layer.b_matrix = model_a_linear_b_matrix
+    modelA.norm_layer.b_matrix = model_a_layernorm_b_matrix
+
+    original_modelA_linear_weight = modelA.linear_layer.weight
+    original_modelA_linear_bias = modelA.linear_layer.bias
+    original_modelA_norm_weight = modelA.norm_layer.weight
+    original_modelA_norm_bias = modelA.norm_layer.bias
+
+    # set modelB
+    model_b_linear_b_matrix = torch.tensor(
+        [
+            [0, 1, 0, 1, 0, 1, 0, 0, 0, 1],
+            [1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+            [0, 1, 1, 1, 0, 0, 1, 1, 0, 1],
+            [1, 1, 0, 1, 1, 1, 0, 0, 1, 1],
+            [0, 0, 0, 1, 0, 1, 1, 0, 0, 1],
+        ]
+    )
+    model_b_layernorm_b_matrix = torch.tensor(
+        [
+            [1, 0, 0, 1, 1],
+        ]
+    )
+    modelB.linear_layer.b_matrix = model_b_linear_b_matrix
+    modelB.norm_layer.b_matrix = model_b_layernorm_b_matrix
+
+    original_modelB_linear_weight = modelB.linear_layer.weight
+    original_modelB_linear_bias = modelB.linear_layer.bias
+    original_modelB_norm_weight = modelB.norm_layer.weight
+    original_modelB_norm_bias = modelB.norm_layer.bias
+
+    # target
+    target_linear_b_matrix = torch.tensor(
+        [
+            [0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
+            [1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+            [0, 1, 1, 1, 0, 0, 1, 1, 0, 1],
+            [1, 1, 0, 1, 1, 1, 0, 0, 1, 1],
+            [0, 1, 0, 1, 0, 1, 1, 1, 0, 1],
+        ]
+    )
+    target_layernorm_b_matrix = torch.tensor(
+        [
+            [1, 1, 0, 1, 1],
+        ]
+    )
+
+    # test in-place union
+    sum_model_(modelA, modelB)
+
+    # modelA
+    assert (modelA.linear_layer.b_matrix == target_linear_b_matrix).all()
+    assert (modelA.norm_layer.b_matrix == target_layernorm_b_matrix).all()
+
+    assert (
+        modelA.linear_layer.weight
+        == original_modelA_linear_weight + original_modelB_linear_weight
+    ).all()
+    assert modelA.linear_layer.bias == original_modelA_linear_bias
+
+    assert (
+        modelA.norm_layer.weight
+        == original_modelA_norm_weight + original_modelB_norm_weight
+    ).all()
+    assert modelA.norm_layer.bias == original_modelA_norm_bias
+
+    # modelB - should remain same
+    assert (modelB.linear_layer.b_matrix == model_b_linear_b_matrix).all()
+    assert (modelB.norm_layer.b_matrix == model_b_layernorm_b_matrix).all()
+
+    assert (modelB.linear_layer.weight == original_modelB_linear_weight).all()
+    assert modelB.linear_layer.bias == original_modelB_linear_bias
+
+    assert (modelB.norm_layer.weight == original_modelB_norm_weight).all()
+    assert modelB.norm_layer.bias == original_modelB_norm_bias
+
+
+def test_sum(modelA, modelB):
+    # set modelA
+    model_a_linear_b_matrix = torch.tensor(
+        [
+            [0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
+            [1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+            [0, 0, 1, 1, 0, 0, 1, 1, 0, 0],
+            [1, 1, 0, 0, 1, 1, 0, 0, 1, 1],
+            [0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
+        ]
+    )
+    model_a_layernorm_b_matrix = torch.tensor(
+        [
+            [1, 1, 0, 1, 0],
+        ]
+    )
+    modelA.linear_layer.b_matrix = model_a_linear_b_matrix
+    modelA.norm_layer.b_matrix = model_a_layernorm_b_matrix
+
+    original_modelA_linear_weight = modelA.linear_layer.weight
+    original_modelA_linear_bias = modelA.linear_layer.bias
+    original_modelA_norm_weight = modelA.norm_layer.weight
+    original_modelA_norm_bias = modelA.norm_layer.bias
+
+    # set modelB
+    model_b_linear_b_matrix = torch.tensor(
+        [
+            [0, 1, 0, 1, 0, 1, 0, 0, 0, 1],
+            [1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+            [0, 1, 1, 1, 0, 0, 1, 1, 0, 1],
+            [1, 1, 0, 1, 1, 1, 0, 0, 1, 1],
+            [0, 0, 0, 1, 0, 1, 1, 0, 0, 1],
+        ]
+    )
+    model_b_layernorm_b_matrix = torch.tensor(
+        [
+            [1, 0, 0, 1, 1],
+        ]
+    )
+    modelB.linear_layer.b_matrix = model_b_linear_b_matrix
+    modelB.norm_layer.b_matrix = model_b_layernorm_b_matrix
+
+    original_modelB_linear_weight = modelB.linear_layer.weight
+    original_modelB_linear_bias = modelB.linear_layer.bias
+    original_modelB_norm_weight = modelB.norm_layer.weight
+    original_modelB_norm_bias = modelB.norm_layer.bias
+
+    # target
+    target_linear_b_matrix = torch.tensor(
+        [
+            [0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
+            [1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+            [0, 1, 1, 1, 0, 0, 1, 1, 0, 1],
+            [1, 1, 0, 1, 1, 1, 0, 0, 1, 1],
+            [0, 1, 0, 1, 0, 1, 1, 1, 0, 1],
+        ]
+    )
+    target_layernorm_b_matrix = torch.tensor(
+        [
+            [1, 1, 0, 1, 1],
+        ]
+    )
+
+    # test in-place union
+    new_model = sum_model(modelA, modelB)
+
+    # modelA - should remain same
+    assert (modelA.linear_layer.b_matrix == model_a_linear_b_matrix).all()
+    assert (modelA.norm_layer.b_matrix == model_a_layernorm_b_matrix).all()
+
+    assert (modelA.linear_layer.weight == original_modelA_linear_weight).all()
+    assert modelA.linear_layer.bias == original_modelA_linear_bias
+
+    assert (modelA.norm_layer.weight == original_modelA_norm_weight).all()
+    assert modelA.norm_layer.bias == original_modelA_norm_bias
+
+    # modelB - should remain same
+    assert (modelB.linear_layer.b_matrix == model_b_linear_b_matrix).all()
+    assert (modelB.norm_layer.b_matrix == model_b_layernorm_b_matrix).all()
+
+    assert (modelB.linear_layer.weight == original_modelB_linear_weight).all()
+    assert modelB.linear_layer.bias == original_modelB_linear_bias
+
+    assert (modelB.norm_layer.weight == original_modelB_norm_weight).all()
+    assert modelB.norm_layer.bias == original_modelB_norm_bias
+
+    # new_model
+    assert (new_model.linear_layer.b_matrix == target_linear_b_matrix).all()
+    assert (new_model.norm_layer.b_matrix == target_layernorm_b_matrix).all()
+
+    assert (
+        new_model.linear_layer.weight
+        == original_modelA_linear_weight + original_modelB_linear_weight
+    ).all()
+    assert new_model.linear_layer.bias == original_modelA_linear_bias
+
+    assert (
+        new_model.norm_layer.weight
+        == original_modelA_norm_weight + original_modelB_norm_weight
+    ).all()
+    assert new_model.norm_layer.bias == original_modelA_norm_bias
