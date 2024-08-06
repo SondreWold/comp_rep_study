@@ -88,7 +88,6 @@ def sum_(subnetwork_A: MaskedLayer, subnetwork_B: MaskedLayer):
         subnetwork_A (MaskedLayer): The first subnetwork.
         subnetwork_B (MaskedLayer): The second subnetwork.
     """
-    assert subnetwork_A.ticket is True and subnetwork_B.ticket is True
     union_(subnetwork_A, subnetwork_B)
 
     # arithmetic addition of weights
