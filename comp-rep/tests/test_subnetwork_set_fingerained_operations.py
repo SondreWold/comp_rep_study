@@ -14,6 +14,7 @@ from comp_rep.pruning.pruning import Pruner
 from comp_rep.pruning.subnetwork_set_operations import (
     difference_by_layer_and_module,
     intersection_by_layer_and_module,
+    sum_by_layer_and_module,
     union_by_layer_and_module,
 )
 
@@ -252,3 +253,37 @@ def test_union_at_two_layers(modelA, modelB):
     # Assert that no other module type is affected
     assert torch.all(new_model.encoder.layers[2].norm_1.b_matrix == unchanged_matrix)
     assert torch.all(new_model.encoder.layers[4].norm_1.b_matrix == unchanged_matrix)
+
+
+def test_sum_by_layer_and_module(modelA, modelB):
+    expected_result = torch.ones(modelA.hidden_size, modelA.hidden_size)
+    unchanged_matrix = torch.triu(torch.ones(modelA.hidden_size, modelA.hidden_size))
+    new_model = sum_by_layer_and_module(
+        modelA,
+        modelB,
+        ["encoder", "decoder", "projection"],
+        [1],
+        [ContinuousMaskLayerNorm],
+    )
+
+    # Assert that the union works where it is supposed to
+    assert torch.all(new_model.encoder.layers[1].norm_1.b_matrix == expected_result)
+    assert torch.all(
+        new_model.encoder.layers[1].norm_1.weight
+        == modelA.encoder.layers[1].norm_1.weight
+        + modelB.encoder.layers[1].norm_1.weight
+    )
+    # Assert that the union is not applied in another layer
+    assert not torch.all(new_model.encoder.layers[0].norm_1.b_matrix == expected_result)
+    assert torch.all(
+        new_model.encoder.layers[0].norm_1.weight
+        == modelA.encoder.layers[1].norm_1.weight
+    )
+    # Assert that no other module type is affected
+    assert torch.all(
+        new_model.encoder.layers[0].self_attention.query.b_matrix == unchanged_matrix
+    )
+    assert torch.all(
+        new_model.encoder.layers[0].self_attention.query.weight
+        == modelA.encoder.layers[0].self_attention.query.weight
+    )

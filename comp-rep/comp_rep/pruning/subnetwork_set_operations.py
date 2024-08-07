@@ -6,6 +6,7 @@ import copy
 from typing import Callable, List, Literal, Optional, Type
 
 import torch
+from torch import nn
 
 from comp_rep.models.model import Transformer
 from comp_rep.pruning.masked_base import MaskedLayer
@@ -78,6 +79,32 @@ def difference_(subnetwork_A: MaskedLayer, subnetwork_B: MaskedLayer):
     intersection_(subnetwork_A, subnetwork_B)
 
 
+def sum_(subnetwork_A: MaskedLayer, subnetwork_B: MaskedLayer):
+    """
+    Computes the sum of subnetwork_A and subnetwork_B.
+    A = A + B
+
+    Args:
+        subnetwork_A (MaskedLayer): The first subnetwork.
+        subnetwork_B (MaskedLayer): The second subnetwork.
+    """
+    union_(subnetwork_A, subnetwork_B)
+
+    # arithmetic addition of weights
+    with torch.no_grad():
+        setattr(
+            subnetwork_A,
+            "weight",
+            nn.Parameter(subnetwork_A.weight + subnetwork_B.weight),
+        )
+        if subnetwork_A.bias is not None and subnetwork_B.bias is not None:
+            setattr(
+                subnetwork_A,
+                "bias",
+                nn.Parameter(subnetwork_A.bias + subnetwork_B.bias),
+            )
+
+
 def union_model(model_A: Transformer, model_B: Transformer) -> Transformer:
     """
     Performs the union of the b_matrix on all MaskedLayers in the entire provided model
@@ -130,6 +157,25 @@ def difference_model(model_A: Transformer, model_B: Transformer) -> Transformer:
     for sub_A, sub_B in zip(model_A.modules(), model_B.modules()):
         if isinstance(sub_A, MaskedLayer) and isinstance(sub_B, MaskedLayer):
             difference_(sub_A, sub_B)
+    return model_A
+
+
+def sum_model(model_A: Transformer, model_B: Transformer) -> Transformer:
+    """
+    Performs the sum on all MaskedLayers in the entire provided model
+
+    Args:
+        model_A (Transformer): The model to replace the weights of
+        model_B (Transformer): The model to calculate the change with
+
+    Returns:
+        Transformer: The modified model
+    """
+    model_A = copy.deepcopy(model_A)
+    model_B = copy.deepcopy(model_B)
+    for sub_A, sub_B in zip(model_A.modules(), model_B.modules()):
+        if isinstance(sub_A, MaskedLayer) and isinstance(sub_B, MaskedLayer):
+            sum_(sub_A, sub_B)
     return model_A
 
 
@@ -187,6 +233,19 @@ def difference_model_(model_A: Transformer, model_B: Transformer):
     for sub_A, sub_B in zip(model_A.modules(), model_B.modules()):
         if isinstance(sub_A, MaskedLayer) and isinstance(sub_B, MaskedLayer):
             difference_(sub_A, sub_B)
+
+
+def sum_model_(model_A: Transformer, model_B: Transformer):
+    """
+    Performs the sum on all MaskedLayers in the entire provided model in place
+
+    Args:
+        model_A (Transformer): The model to replace
+        model_B (Transformer): The model to calculate the change with
+    """
+    for sub_A, sub_B in zip(model_A.modules(), model_B.modules()):
+        if isinstance(sub_A, MaskedLayer) and isinstance(sub_B, MaskedLayer):
+            sum_(sub_A, sub_B)
 
 
 def complement_model_(subnetwork: Transformer):
@@ -299,4 +358,21 @@ def difference_by_layer_and_module(
     """
     return binary_operation_by_layer_and_module(
         model_A, model_B, difference_, architecture_blocks, layer_idx, module_types
+    )
+
+
+def sum_by_layer_and_module(
+    model_A: Transformer,
+    model_B: Transformer,
+    architecture_blocks: Optional[
+        List[Literal["encoder", "decoder", "projection"]]
+    ] = None,
+    layer_idx: Optional[List[int]] = None,
+    module_types: Optional[List[Type]] = None,
+):
+    """
+    Replaces the b_matix and weights of model_A with the sum of model_A and model_B at a specified layer for a specificed type of module.
+    """
+    return binary_operation_by_layer_and_module(
+        model_A, model_B, sum_, architecture_blocks, layer_idx, module_types
     )
