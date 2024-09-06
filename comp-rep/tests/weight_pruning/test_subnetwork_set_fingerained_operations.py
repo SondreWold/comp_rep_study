@@ -4,19 +4,22 @@ Tests for subnetwork set  fingerained operations
 
 import pytest
 import torch
-from torch import nn
 
 from comp_rep.models.model import Transformer
 from comp_rep.pruning.masked_base import MaskedLayer
-from comp_rep.pruning.masked_layernorm import ContinuousMaskLayerNorm
-from comp_rep.pruning.masked_linear import ContinuousMaskLinear
-from comp_rep.pruning.pruning import Pruner
 from comp_rep.pruning.subnetwork_set_operations import (
     difference_by_layer_and_module,
     intersection_by_layer_and_module,
     sum_by_layer_and_module,
     union_by_layer_and_module,
 )
+from comp_rep.pruning.weight_pruning.masked_weights_layernorm import (
+    ContinuousMaskedWeightsLayerNorm,
+)
+from comp_rep.pruning.weight_pruning.masked_weights_linear import (
+    ContinuousMaskedWeightsLinear,
+)
+from comp_rep.pruning.weight_pruning.weight_pruner import WeightPruner
 
 
 @pytest.fixture
@@ -26,10 +29,17 @@ def modelA():
     layers = 6
     hidden_dim = 64
     dropout = 0.1
-    model = Transformer(
-        input_vocabulary_size, output_vocabulary_size, layers, hidden_dim, dropout
+    model_hparams = {
+        "input_vocabulary_size": input_vocabulary_size,
+        "output_vocabulary_size": output_vocabulary_size,
+        "num_transformer_layers": layers,
+        "hidden_size": hidden_dim,
+        "dropout": dropout,
+    }
+    model = Transformer(**model_hparams)
+    pruner = WeightPruner(
+        model, model_hparams, "continuous", {"mask_initial_value": 0.1}
     )
-    pruner = Pruner(model, "continuous", {"mask_initial_value": 0.1})
     pruner.activate_ticket()
     change_b_matrix_(model)
     return model
@@ -42,10 +52,17 @@ def modelB():
     layers = 6
     hidden_dim = 64
     dropout = 0.1
-    model = Transformer(
-        input_vocabulary_size, output_vocabulary_size, layers, hidden_dim, dropout
+    model_hparams = {
+        "input_vocabulary_size": input_vocabulary_size,
+        "output_vocabulary_size": output_vocabulary_size,
+        "num_transformer_layers": layers,
+        "hidden_size": hidden_dim,
+        "dropout": dropout,
+    }
+    model = Transformer(**model_hparams)
+    pruner = WeightPruner(
+        model, model_hparams, "continuous", {"mask_initial_value": 0.1}
     )
-    pruner = Pruner(model, "continuous", {"mask_initial_value": 0.1})
     pruner.activate_ticket()
     change_b_matrix_(model, True)
     return model
@@ -58,10 +75,17 @@ def modelC():
     layers = 6
     hidden_dim = 64
     dropout = 0.1
-    model = Transformer(
-        input_vocabulary_size, output_vocabulary_size, layers, hidden_dim, dropout
+    model_hparams = {
+        "input_vocabulary_size": input_vocabulary_size,
+        "output_vocabulary_size": output_vocabulary_size,
+        "num_transformer_layers": layers,
+        "hidden_size": hidden_dim,
+        "dropout": dropout,
+    }
+    model = Transformer(**model_hparams)
+    pruner = WeightPruner(
+        model, model_hparams, "continuous", {"mask_initial_value": 0.1}
     )
-    pruner = Pruner(model, "continuous", {"mask_initial_value": 0.1})
     pruner.activate_ticket()
     for module in model.modules():
         if isinstance(module, MaskedLayer):
@@ -92,7 +116,7 @@ def test_union_by_layer_and_module(modelA, modelB):
         modelB,
         ["encoder", "decoder", "projection"],
         [1],
-        [ContinuousMaskLayerNorm],
+        [ContinuousMaskedWeightsLayerNorm],
     )
 
     # Assert that the union works where it is supposed to
@@ -109,7 +133,7 @@ def test_union_by_layer_and_module_encoder_only(modelA, modelB):
     expected_result = torch.ones(modelA.hidden_size, modelA.hidden_size)
     unchanged_matrix = torch.triu(torch.ones(modelA.hidden_size, modelA.hidden_size))
     new_model = union_by_layer_and_module(
-        modelA, modelB, ["encoder"], [1], [ContinuousMaskLayerNorm]
+        modelA, modelB, ["encoder"], [1], [ContinuousMaskedWeightsLayerNorm]
     )
 
     # Assert that the union works where it is supposed to
@@ -135,7 +159,7 @@ def test_intersection_by_layer_and_module(modelA, modelB):
         modelB,
         ["encoder", "decoder", "projection"],
         [1],
-        [ContinuousMaskLayerNorm],
+        [ContinuousMaskedWeightsLayerNorm],
     )
 
     # Assert that the intersection works where it is supposed to
@@ -152,7 +176,7 @@ def test_intersection_by_layer_and_module_encoder_only(modelA, modelB):
     expected_result = torch.zeros(modelA.hidden_size, modelA.hidden_size)
     unchanged_matrix = torch.triu(torch.ones(modelA.hidden_size, modelA.hidden_size))
     new_model = intersection_by_layer_and_module(
-        modelA, modelB, ["encoder"], [1], [ContinuousMaskLayerNorm]
+        modelA, modelB, ["encoder"], [1], [ContinuousMaskedWeightsLayerNorm]
     )
 
     # Assert that the union works where it is supposed to
@@ -183,7 +207,7 @@ def test_difference_by_layer_and_module(modelA, modelC):
         modelC,
         ["encoder", "decoder", "projection"],
         [1],
-        [ContinuousMaskLayerNorm],
+        [ContinuousMaskedWeightsLayerNorm],
     )
 
     # Assert that the difference works where it is supposed to
@@ -205,7 +229,7 @@ def test_difference_by_layer_and_module_encoder_only(modelA, modelC):
     expected_result = torch.tensor(full_triu_matrix)
 
     new_model = difference_by_layer_and_module(
-        modelA, modelC, ["encoder"], [1], [ContinuousMaskLayerNorm]
+        modelA, modelC, ["encoder"], [1], [ContinuousMaskedWeightsLayerNorm]
     )
 
     # Assert that the union works where it is supposed to
@@ -231,7 +255,7 @@ def test_union_at_two_layers(modelA, modelB):
         modelB,
         ["encoder", "decoder", "projection"],
         [2, 4],
-        [ContinuousMaskLinear],
+        [ContinuousMaskedWeightsLinear],
     )
 
     # Assert that the union works where it is supposed to
@@ -263,7 +287,7 @@ def test_sum_by_layer_and_module(modelA, modelB):
         modelB,
         ["encoder", "decoder", "projection"],
         [1],
-        [ContinuousMaskLayerNorm],
+        [ContinuousMaskedWeightsLayerNorm],
     )
 
     # Assert that the union works where it is supposed to

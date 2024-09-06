@@ -162,10 +162,20 @@ def main() -> None:
 
     pl_transformer = LitTransformer(args)
     lr_monitor = LearningRateMonitor(logging_interval="step")
+
+    # checkpoint saving
+    model_ckpt_name = "base_model.ckpt"
+    model_ckpt_path = base_model_dir / "base_model.ckpt"
+    if os.path.exists(model_ckpt_path):
+        logging.warning(
+            f"File: {model_ckpt_path} already exists. File will be overwritten."
+        )
+        os.remove(model_ckpt_path)
+
     checkpoint_callback = ModelCheckpoint(
         monitor="val_loss",
         dirpath=base_model_dir,
-        filename="base_model",
+        filename=model_ckpt_name.split(".")[0],
         save_top_k=1,
         mode="min",
     )

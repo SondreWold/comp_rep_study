@@ -1,41 +1,43 @@
 """
-Modules to find subnetworks via model pruning
+Modules to find subnetworks via model weight pruning
 """
 
 from collections import defaultdict
-from typing import Any, Literal
+from typing import Any, Dict, Literal
 
 import torch
 import torch.nn as nn
 
-from comp_rep.pruning.masked_base import ContinuousMaskedLayer, MaskedLayer
-from comp_rep.pruning.masked_layernorm import (
-    ContinuousMaskLayerNorm,
-    SampledMaskLayerNorm,
+from comp_rep.pruning.masked_base import MaskedLayer
+from comp_rep.pruning.pruner import Pruner
+from comp_rep.pruning.weight_pruning.masked_weights_layernorm import (
+    ContinuousMaskedWeightsLayerNorm,
+    SampledMaskedWeightsLayerNorm,
 )
-from comp_rep.pruning.masked_linear import ContinuousMaskLinear, SampledMaskLinear
+from comp_rep.pruning.weight_pruning.masked_weights_linear import (
+    ContinuousMaskedWeightsLinear,
+    SampledMaskedWeightsLinear,
+)
 
 
-class Pruner:
+class WeightPruner(Pruner):
     """
-    A model wrapper that applies a masking strategy for model pruning.
+    A model wrapper that applies a masking strategy for model weight pruning.
     """
 
     def __init__(
         self,
         model: nn.Module,
+        model_hparams: Dict,
         pruning_method: Literal["continuous", "sampled"],
         maskedlayer_kwargs: dict[str, Any],
     ):
-        self.model = model
-        self.init_model_pruning(pruning_method, maskedlayer_kwargs)
-
-    def freeze_initial_model(self) -> None:
-        """
-        Freezes the initial model parameters to prevent updates during training.
-        """
-        for p in self.model.parameters():
-            p.requires_grad = False
+        super(WeightPruner, self).__init__(
+            model=model,
+            model_hparams=model_hparams,
+            pruning_method=pruning_method,
+            maskedlayer_kwargs=maskedlayer_kwargs,
+        )
 
     def init_model_pruning(
         self,
@@ -58,7 +60,7 @@ class Pruner:
                         setattr(
                             module,
                             name,
-                            ContinuousMaskLinear(
+                            ContinuousMaskedWeightsLinear(
                                 child.weight, child.bias, **maskedlayer_kwargs
                             ),
                         )
@@ -66,7 +68,7 @@ class Pruner:
                         setattr(
                             module,
                             name,
-                            SampledMaskLinear(
+                            SampledMaskedWeightsLinear(
                                 child.weight, child.bias, **maskedlayer_kwargs
                             ),
                         )
@@ -82,7 +84,7 @@ class Pruner:
                         setattr(
                             module,
                             name,
-                            ContinuousMaskLayerNorm(
+                            ContinuousMaskedWeightsLayerNorm(
                                 child.normalized_shape,
                                 child.weight,
                                 child.bias,
@@ -94,7 +96,7 @@ class Pruner:
                         setattr(
                             module,
                             name,
-                            SampledMaskLayerNorm(
+                            SampledMaskedWeightsLayerNorm(
                                 child.normalized_shape,
                                 child.weight,
                                 child.bias,
@@ -110,18 +112,7 @@ class Pruner:
         replace_linear(self.model)
         replace_layernorm(self.model)
 
-    def update_hyperparameters(self):
-        """
-        Updates the hyperparameters of the underlying Masked modules.
-
-        Return:
-            None
-        """
-        for m in self.model.modules():
-            if isinstance(m, ContinuousMaskedLayer):
-                m.update_temperature()
-
-    def get_remaining_weights(self) -> dict:
+    def get_remaining_mask(self) -> dict:
         """
         Computes the macro average remaining weights of the masked modules.
 
@@ -133,7 +124,7 @@ class Pruner:
         fine_grained_remaining_weights = {}
         for name, m in self.model.named_modules():
             if isinstance(m, MaskedLayer):
-                local_remainder = m.compute_remaining_weights()
+                local_remainder = m.compute_remaining_mask()
                 name_list = name.split(".")
                 try:
                     coder = f"{name_list[0]}_layer_{name_list[2]}"
@@ -150,7 +141,7 @@ class Pruner:
             key: sum(x) / len(x) for key, x in layer_remaining_running.items()
         }
         section_logs = {
-            "global_remaining_weights": global_macro_average,
+            "global_remaining_mask": global_macro_average,
             "pruning_layers/": per_layer_remaining,
             "pruning_finegrained/": fine_grained_remaining_weights,
         }
@@ -213,8 +204,11 @@ if __name__ == "__main__":
     model = SimpleModel()
     print(f"Toy model: \n{model}")
 
-    sampled_masked_model = Pruner(
-        model, pruning_method="sampled", maskedlayer_kwargs=sampled_maskedlayer_kwargs
+    sampled_masked_model = WeightPruner(
+        model,
+        model_hparams={},
+        pruning_method="sampled",
+        maskedlayer_kwargs=sampled_maskedlayer_kwargs,
     )
     print(f"Sampled Masked model: \n{model}")
 
@@ -232,8 +226,11 @@ if __name__ == "__main__":
     model = SimpleModel()
     print(f"Toy model: \n{model}")
 
-    cont_masked_model = Pruner(
-        model, pruning_method="continuous", maskedlayer_kwargs=cont_maskedlayer_kwargs
+    cont_masked_model = WeightPruner(
+        model,
+        model_hparams={},
+        pruning_method="continuous",
+        maskedlayer_kwargs=cont_maskedlayer_kwargs,
     )
     print(f"Continuous Masked model: \n{model}")
 

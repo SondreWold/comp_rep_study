@@ -9,7 +9,7 @@ import os
 import random
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal
 
 import numpy as np
 import torch
@@ -17,9 +17,12 @@ import torch.nn as nn
 
 from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.data_prep.dataset import Lang
-from comp_rep.models.lightning_models import LitTransformer
-from comp_rep.models.lightning_pruned_models import LitPrunedModel
+
+# from comp_rep.models.lightning_models import LitTransformer
+# from comp_rep.models.lightning_pruned_models import LitPrunedModel
 from comp_rep.models.model import Transformer
+from comp_rep.pruning.activation_pruning.activation_pruner import ActivationPruner
+from comp_rep.pruning.weight_pruning.weight_pruner import WeightPruner
 
 
 class ValidatePredictionPath(argparse.Action):
@@ -183,20 +186,67 @@ def create_transformer_from_checkpoint(model_path: Path) -> nn.Module:
     return base_model
 
 
-def load_model(
-    path: Path,
-    is_masked: bool,
-    model: Optional[nn.Module],
-):
-    if is_masked:
-        pl_pruner = LitPrunedModel.load_from_checkpoint(path, model=model)
-        model = pl_pruner.model
-        pl_pruner.pruner.activate_ticket()
-        pl_pruner.pruner.compute_and_update_masks()
+# def load_model(
+#    path: Path,
+#    is_masked: bool,
+#    model: Optional[nn.Module],
+# ):
+#    if is_masked:
+#        pl_pruner = LitPrunedModel.load_from_checkpoint(path, model=model)
+#        model = pl_pruner.model
+#        pl_pruner.pruner.activate_ticket()
+#        pl_pruner.pruner.compute_and_update_masks()
+#    else:
+#        pl_transformer = LitTransformer.load_from_checkpoint(path)
+#        model = pl_transformer.model
+#    return model
+
+
+def init_pruner_by_name(
+    pruning_type: Literal["activations", "weights"], pruner_kwargs: Dict
+) -> ActivationPruner | WeightPruner:
+    """
+    Initializes a pruner by its class name.
+
+    Args:
+        pruning_type (Literal["activations", "weights"]): The pruning type of the pruner to initialize.
+        pruner_kwargs (Dict): Keyword arguments to pass to the pruner's constructor.
+
+    Returns:
+        ActivationPruner | WeightPruner: An instance of the specified pruner class.
+    """
+    if pruning_type == "activations" or pruning_type == "ActivationPruner":
+        return ActivationPruner(**pruner_kwargs)
+    elif pruning_type == "weights" or pruning_type == "WeightPruner":
+        return WeightPruner(**pruner_kwargs)
     else:
-        pl_transformer = LitTransformer.load_from_checkpoint(path)
-        model = pl_transformer.model
-    return model
+        raise ValueError(
+            f"Invalid pruning type for pruner: {pruning_type}! Must be 'activations' or 'weights'."
+        )
+
+
+def pruner_from_config(
+    pruning_type: Literal["activations", "weights"], config: Dict, model: nn.Module
+) -> ActivationPruner | WeightPruner:
+    """
+    Initializes a pruner from config by its class name.
+
+    Args:
+        pruning_type (Literal["activations", "weights"]): The pruning type of the pruner to initialize.
+        config (Dict): The pruner's config dictionary.
+        model (nn.Module): The pruned model.
+
+    Returns:
+        ActivationPruner | WeightPruner: An instance of the specified pruner class.
+    """
+    if pruning_type == "activations" or pruning_type == "ActivationPruner":
+        return ActivationPruner.from_config(config, model=model)
+    elif pruning_type == "weights" or pruning_type == "WeightPruner":
+        return WeightPruner.from_config(config, model=model)
+    else:
+        raise ValueError(
+            f"Invalid pruning type for pruner: {pruning_type}! Must be 'activations' or 'weights'."
+        )
 
 
 def save_list_to_csv(file_path: Path, data: List[str]) -> None:

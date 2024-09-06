@@ -9,18 +9,11 @@ from collections import defaultdict
 from pathlib import Path
 
 import torch
-from torch.utils.data import DataLoader
 
 from comp_rep.constants import POSSIBLE_TASKS
-from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
-from comp_rep.eval.decoding import GreedySearch
-from comp_rep.eval.evaluator import evaluate_generation
-from comp_rep.utils import (
-    ValidateTaskOptions,
-    load_model,
-    load_tokenizer,
-    setup_logging,
-)
+from comp_rep.eval.evaluator import eval_task
+from comp_rep.models.lightning_models import LitTransformer
+from comp_rep.utils import ValidateTaskOptions, load_tokenizer, setup_logging
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -63,43 +56,60 @@ def run_base_evaluation(
     save_path: Path,
     tasks: list[str],
 ) -> dict:
+    """
+    Run the base model evaluation on a list of tasks.
+
+    Args:
+        save_path (Path): The path to the directory where the base model is saved.
+        tasks (list[str]): A list of task names to evaluate the model on.
+
+    Returns:
+        dict: A dictionary containing the evaluation results for each task. The keys are the task names, and the values are lists of accuracy values.
+
+    """
     result = defaultdict(list)
+
+    # load base model
     model_path = save_path / "base_model.ckpt"
-    model = load_model(model_path, False, None, None)
+    pl_transformer = LitTransformer.load_from_checkpoint(model_path)  # type: ignore
+    model = pl_transformer.model
     tokenizer = load_tokenizer(save_path)
-    for function in tasks:
-        eval_path = DATA_DIR / function / "test.csv"
-        logging.info(f"Evaluating function: {function}")
-        local_output_path = RESULT_DIR / f"function_{function}"
-        Path(local_output_path).mkdir(parents=True, exist_ok=True)
-        eval_dataset = SequenceDataset(eval_path, tokenizer=tokenizer)
-        eval_loader = DataLoader(
-            eval_dataset,
-            batch_size=64,
-            collate_fn=CollateFunctor(),
-            shuffle=False,
-            num_workers=7,
-            persistent_workers=True,
+
+    # eval model
+    for task_name in tasks:
+        data_path = DATA_DIR / task_name / "test.csv"
+        output_dir = RESULT_DIR / f"base_model_function_{task_name}"
+
+        task_accuracy = eval_task(
+            task_name=task_name,
+            model=model,
+            tokenizer=tokenizer,
+            device=DEVICE,
+            eval_data_path=data_path,
+            output_dir=output_dir,
         )
-        searcher = GreedySearch(model, eval_dataset.output_language)
-        accuracy = evaluate_generation(
-            model, searcher, eval_loader, local_output_path, DEVICE
-        )
-        result[function].append(accuracy)
+        result[task_name].append(task_accuracy)
     return result
 
 
 def main() -> None:
+    """
+    Main function.
+    """
     args = parse_args()
+
     setup_logging(args.verbose)
     config = vars(args).copy()
     config_string = "\n".join([f"--{k}: {v}" for k, v in config.items()])
     logging.info(f"\nRunning function evaluation with the config: \n{config_string}")
+
     result = run_base_evaluation(
         args.save_path,
         args.eval_tasks,
     )
     logging.info(result)
+
+    # save result
     result = dict(result)
     json_dict = json.dumps(result)
     output_path = RESULT_DIR / "base_model_results.json"

@@ -6,8 +6,8 @@ import copy
 from typing import List, Literal, Optional, Type
 
 from comp_rep.models.model import Transformer
-from comp_rep.pruning.masked_base import MaskedLayer
 from comp_rep.pruning.subnetwork_set_operations import intersection_, union_
+from comp_rep.pruning.weight_pruning.masked_weights_base import MaskedWeightsLayer
 from comp_rep.utils import (
     get_architecture_block_from_module_name,
     get_current_layer_from_module_name,
@@ -15,13 +15,13 @@ from comp_rep.utils import (
 
 
 def intersection_remaining_weights(
-    masked_layers: List[MaskedLayer], fraction: bool = True
+    masked_layers: List[MaskedWeightsLayer], fraction: bool = True
 ) -> float:
     """
     Calculates the sum or fraction of remaining weights in the intersection of multiple masked layers.
 
     Args:
-        masked_layers (List[MaskedLayer]): A list of masked layers.
+        masked_layers (List[MaskedWeightsLayer]): A list of masked layers.
         fraction (bool): If True, computes the fraction of remaining weights in the layer, the sum if False. Defaults to True.
 
     Returns:
@@ -37,17 +37,17 @@ def intersection_remaining_weights(
     for masked_layer in masked_layers:
         intersection_(intersection_layer, masked_layer)
 
-    return intersection_layer.compute_remaining_weights(fraction)
+    return intersection_layer.compute_remaining_mask(fraction)
 
 
 def union_remaining_weights(
-    masked_layers: List[MaskedLayer], fraction: bool = True
+    masked_layers: List[MaskedWeightsLayer], fraction: bool = True
 ) -> float:
     """
     Calculates the sum or fraction of remaining weights in the union of multiple masked layers.
 
     Args:
-        masked_layers (List[MaskedLayer]): A list of masked layers.
+        masked_layers (List[MaskedWeightsLayer]): A list of masked layers.
         fraction (bool): If True, computes the fraction of remaining weights in the layer, the sum if False. Defaults to True.
 
     Returns:
@@ -63,17 +63,17 @@ def union_remaining_weights(
     for masked_layer in masked_layers:
         union_(union_layer, masked_layer)
 
-    return union_layer.compute_remaining_weights(fraction)
+    return union_layer.compute_remaining_mask(fraction)
 
 
 def intersection_over_union(
-    masked_layers: List[MaskedLayer], fraction: bool = False
+    masked_layers: List[MaskedWeightsLayer], fraction: bool = False
 ) -> float:
     """
     Calculate the intersection over union of multiple masked layers.
 
     Args:
-        masked_layers (List[MaskedLayer]): A list of masked layers.
+        masked_layers (List[MaskedWeightsLayer]): A list of masked layers.
         fraction (bool): If True, computes the fraction of remaining weights in the layer, the sum if False. Defaults to False.
 
     Returns:
@@ -87,13 +87,13 @@ def intersection_over_union(
 
 
 def intersection_over_minimum(
-    masked_layers: List[MaskedLayer], fraction: bool = False
+    masked_layers: List[MaskedWeightsLayer], fraction: bool = False
 ) -> float:
     """
     Calculates the intersection over minimum of multiple masked layers.
 
     Args:
-        masked_layers (List[MaskedLayer]): A list of masked layers.
+        masked_layers (List[MaskedWeightsLayer]): A list of masked layers.
         fraction (bool): If True, computes the fraction of remaining weights in the layer, the sum if False. Defaults to False.
 
     Returns:
@@ -102,7 +102,7 @@ def intersection_over_minimum(
     assert len(masked_layers) > 0, f"Empty list of masked layers: {masked_layers}!"
     minimum_frac = min(
         [
-            masked_layer.compute_remaining_weights(fraction)
+            masked_layer.compute_remaining_mask(fraction)
             for masked_layer in masked_layers
         ]
     )
@@ -141,7 +141,7 @@ def intersection_remaining_weights_by_layer_and_module(
     first_model = model_list[0]
 
     for module_name, subnetwork in first_model.named_modules():
-        if isinstance(subnetwork, MaskedLayer):
+        if isinstance(subnetwork, MaskedWeightsLayer):
             if architecture_blocks:
                 architecture_block = get_architecture_block_from_module_name(
                     module_name
@@ -155,7 +155,7 @@ def intersection_remaining_weights_by_layer_and_module(
                     continue
 
             if not module_types:  # If no type is specifed, compute for everything
-                module_types = [MaskedLayer]
+                module_types = [MaskedWeightsLayer]
 
             for acceptable_type in module_types:
                 if isinstance(subnetwork, acceptable_type):
@@ -202,7 +202,7 @@ def union_remaining_weights_by_layer_and_module(
     first_model = model_list[0]
 
     for module_name, subnetwork in first_model.named_modules():
-        if isinstance(subnetwork, MaskedLayer):
+        if isinstance(subnetwork, MaskedWeightsLayer):
             if architecture_blocks:
                 architecture_block = get_architecture_block_from_module_name(
                     module_name
@@ -216,7 +216,7 @@ def union_remaining_weights_by_layer_and_module(
                     continue
 
             if not module_types:  # If no type is specifed, compute for everything
-                module_types = [MaskedLayer]
+                module_types = [MaskedWeightsLayer]
 
             for acceptable_type in module_types:
                 if isinstance(subnetwork, acceptable_type):
@@ -262,7 +262,7 @@ def iou_by_layer_and_module(
     first_model = model_list[0]
 
     for module_name, subnetwork in first_model.named_modules():
-        if isinstance(subnetwork, MaskedLayer):
+        if isinstance(subnetwork, MaskedWeightsLayer):
             if architecture_blocks:
                 architecture_block = get_architecture_block_from_module_name(
                     module_name
@@ -276,7 +276,7 @@ def iou_by_layer_and_module(
                     continue
 
             if not module_types:  # If no type is specifed, compute for everything
-                module_types = [MaskedLayer]
+                module_types = [MaskedWeightsLayer]
 
             for acceptable_type in module_types:
                 if isinstance(subnetwork, acceptable_type):
@@ -322,7 +322,7 @@ def iom_by_layer_and_module(
 
     first_model = model_list[0]
     for module_name, subnetwork in first_model.named_modules():
-        if isinstance(subnetwork, MaskedLayer):
+        if isinstance(subnetwork, MaskedWeightsLayer):
             if architecture_blocks:
                 architecture_block = get_architecture_block_from_module_name(
                     module_name
@@ -336,7 +336,7 @@ def iom_by_layer_and_module(
                     continue
 
             if not module_types:  # If no type is specifed, compute for everything
-                module_types = [MaskedLayer]
+                module_types = [MaskedWeightsLayer]
 
             for acceptable_type in module_types:
                 if isinstance(subnetwork, acceptable_type):
@@ -347,7 +347,7 @@ def iom_by_layer_and_module(
                         masked_layers, fraction  # type: ignore
                     )
                     weights = [
-                        w_sum + masked_layer.compute_remaining_weights(fraction)
+                        w_sum + masked_layer.compute_remaining_mask(fraction)
                         for w_sum, masked_layer in zip(weights, masked_layers)
                     ]
 

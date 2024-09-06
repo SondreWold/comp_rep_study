@@ -1,5 +1,5 @@
 """
-Masked layer norm layers for model pruning.
+Masked layer norm layers for model weight pruning.
 """
 
 from typing import Optional, Tuple
@@ -9,11 +9,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from comp_rep.pruning.batch_ops import batch_bias_add, batch_const_mul
-from comp_rep.pruning.masked_base import ContinuousMaskedLayer, SampledMaskedLayer
+from comp_rep.pruning.weight_pruning.batch_ops import batch_bias_add, batch_const_mul
+from comp_rep.pruning.weight_pruning.masked_weights_base import (
+    ContinuousMaskedWeightsLayer,
+    SampledMaskedWeightsLayer,
+)
 
 
-class SampledMaskLayerNorm(SampledMaskedLayer):
+class SampledMaskedWeightsLayerNorm(SampledMaskedWeightsLayer):
     """
     A masked LayerNorm module based on sampling. Masks are binarized to only keep or remove individual weights.
     This is achieved using a Gumbel-Sigmoid with a straight-through estimator.
@@ -38,7 +41,7 @@ class SampledMaskLayerNorm(SampledMaskedLayer):
             tau (float): The tau parameter for the s_i computation. Default: 1.0.
             num_masks (int): The number of mask samples. Default: 1.
         """
-        super(SampledMaskLayerNorm, self).__init__(
+        super(SampledMaskedWeightsLayerNorm, self).__init__(
             weight=weight, bias=bias, ticket=ticket, tau=tau, num_masks=num_masks
         )
         self.normalized_shape = normalized_shape
@@ -66,12 +69,10 @@ class SampledMaskLayerNorm(SampledMaskedLayer):
         return frac
 
     def extra_repr(self) -> str:
-        return "{normalized_shape}, eps={eps}, s_matrix={s_matrix.shape}, b_matrix={b_matrix.shape}".format(
-            **self.__dict__
-        )
+        return f"{self.normalized_shape}, eps={self.eps}, s_matrix={self.s_matrix.shape}, b_matrix={self.b_matrix.shape}"
 
 
-class ContinuousMaskLayerNorm(ContinuousMaskedLayer):
+class ContinuousMaskedWeightsLayerNorm(ContinuousMaskedWeightsLayer):
     def __init__(
         self,
         normalized_shape: Tuple[int, ...],
@@ -82,7 +83,7 @@ class ContinuousMaskLayerNorm(ContinuousMaskedLayer):
         temperature_increase: float = 1.0,
         ticket: bool = False,
     ):
-        super(ContinuousMaskLayerNorm, self).__init__(
+        super(ContinuousMaskedWeightsLayerNorm, self).__init__(
             weight=weight,
             bias=bias,
             ticket=ticket,
@@ -122,7 +123,7 @@ if __name__ == "__main__":
     layer_norm = nn.LayerNorm(in_features)
     print(f"Layer norm: \n{layer_norm}")
 
-    cont_mask_layernorm = ContinuousMaskLayerNorm(
+    cont_mask_layernorm = ContinuousMaskedWeightsLayerNorm(
         layer_norm.normalized_shape, layer_norm.weight, layer_norm.bias, layer_norm.eps
     )
     output_tensor_cont = cont_mask_layernorm(input_tensor)
@@ -136,7 +137,7 @@ if __name__ == "__main__":
     new_layer_norm = nn.LayerNorm(in_features)
     print(f"Layer norm: \n{new_layer_norm}")
 
-    sampled_mask_layernorm = SampledMaskLayerNorm(
+    sampled_mask_layernorm = SampledMaskedWeightsLayerNorm(
         new_layer_norm.normalized_shape,
         new_layer_norm.weight,
         new_layer_norm.bias,

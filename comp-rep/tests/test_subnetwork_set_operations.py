@@ -6,8 +6,6 @@ import pytest
 import torch
 from torch import nn
 
-from comp_rep.pruning.masked_layernorm import ContinuousMaskLayerNorm
-from comp_rep.pruning.masked_linear import ContinuousMaskLinear
 from comp_rep.pruning.subnetwork_set_operations import (
     complement_model,
     complement_model_,
@@ -20,6 +18,12 @@ from comp_rep.pruning.subnetwork_set_operations import (
     union_model,
     union_model_,
 )
+from comp_rep.pruning.weight_pruning.masked_weights_layernorm import (
+    ContinuousMaskedWeightsLayerNorm,
+)
+from comp_rep.pruning.weight_pruning.masked_weights_linear import (
+    ContinuousMaskedWeightsLinear,
+)
 
 
 class Transformer(nn.Module):
@@ -28,10 +32,10 @@ class Transformer(nn.Module):
         linear_weight = nn.Parameter(torch.randn(output_dim, input_dim))
         norm_layer_weights = nn.Parameter(torch.randn(norm_shape))
 
-        self.linear_layer = ContinuousMaskLinear(
+        self.linear_layer = ContinuousMaskedWeightsLinear(
             weight=linear_weight, bias=None, ticket=True
         )
-        self.norm_layer = ContinuousMaskLayerNorm(
+        self.norm_layer = ContinuousMaskedWeightsLayerNorm(
             normalized_shape=norm_shape,
             weight=norm_layer_weights,
             bias=None,

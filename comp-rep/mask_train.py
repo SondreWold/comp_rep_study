@@ -26,6 +26,7 @@ from comp_rep.models.lightning_pruned_models import LitPrunedModel
 from comp_rep.utils import (
     ValidateSavePath,
     ValidateWandbPath,
+    init_pruner_by_name,
     load_tokenizer,
     save_tokenizer,
     set_seed,
@@ -100,6 +101,13 @@ def parse_args() -> argparse.Namespace:
         default="append",
         choices=POSSIBLE_TASKS,
         help="Name of subtask on which model has been pruned on.",
+    )
+    parser.add_argument(
+        "--pruning_type",
+        type=str,
+        choices=["weights", "activations"],
+        default="activations",
+        help="Pruning type (either 'weights' or 'activations').",
     )
     parser.add_argument(
         "--pruning_method",
@@ -215,13 +223,23 @@ def main() -> None:
     )
 
     # load model
-    transformer_model = LitTransformer.load_from_checkpoint(
+    lit_transformer_model = LitTransformer.load_from_checkpoint(
         checkpoint_path=base_model_dir / "base_model.ckpt",
         args=args,
-    )
+    )  # type: ignore
+
+    transformer_model = lit_transformer_model.model
+    transformer_model_hparams = {
+        "input_vocabulary_size": transformer_model.input_vocabulary_size,
+        "output_vocabulary_size": transformer_model.output_vocabulary_size,
+        "num_transformer_layers": transformer_model.num_transformer_layers,
+        "hidden_size": transformer_model.hidden_size,
+        "dropout": transformer_model.dropout,
+    }
 
     # init pruner
     pruning_methods_kwargs: dict[str, Any] = {}
+
     if args.pruning_method == "continuous":
         pruning_methods_kwargs["temperature_increase"] = args.max_temp ** (
             1.0 / args.epochs
@@ -233,14 +251,19 @@ def main() -> None:
     else:
         raise ValueError("Invalid pruning strategy method provided")
 
-    args.T_max = args.epochs * len(train_loader)
-    pl_pruned_model = LitPrunedModel(
-        args=args,
-        model=transformer_model.model,
-        pruning_method=args.pruning_method,
-        maskedlayer_kwargs=pruning_methods_kwargs,
+    pruner_kwargs = {
+        "model": transformer_model,
+        "model_hparams": transformer_model_hparams,
+        "pruning_method": args.pruning_method,
+        "maskedlayer_kwargs": pruning_methods_kwargs,
+    }
+    pruner = init_pruner_by_name(
+        pruning_type=args.pruning_type, pruner_kwargs=pruner_kwargs
     )
-    searcher = GreedySearch(pl_pruned_model.model, val_dataset.output_language)
+    args.T_max = args.epochs * len(train_loader)
+
+    pl_pruned_model = LitPrunedModel(args=args, pruner=pruner)
+    searcher = GreedySearch(pl_pruned_model.pruner.model, val_dataset.output_language)
 
     # callbacks
     lr_monitor = LearningRateMonitor(logging_interval="step")
@@ -253,10 +276,19 @@ def main() -> None:
     callbacks: list = [lr_monitor, acc_callback]
 
     if not args.sweep:
+        # checkpoint saving
+        model_ckpt_name = f"{args.pruning_type}_{args.pruning_method}_pruned_model.ckpt"
+        model_ckpt_path = pruned_model_dir / model_ckpt_name
+        if os.path.exists(model_ckpt_path):
+            logging.warning(
+                f"File: {model_ckpt_path} already exists. File will be overwritten."
+            )
+            os.remove(model_ckpt_path)
+
         checkpoint_callback = ModelCheckpoint(
             monitor="val_loss",
             dirpath=pruned_model_dir,
-            filename=f"{args.pruning_method}_pruned_model",
+            filename=model_ckpt_name.split(".")[0],
             save_top_k=1,
             mode="min",
         )
@@ -275,12 +307,16 @@ def main() -> None:
 
     # evaluate model
     if args.eval:
-        prediction_path = RESULT_DIR / args.subtask / args.pruning_method
+        prediction_path = (
+            RESULT_DIR / args.subtask / args.pruning_type / args.pruning_method
+        )
         os.makedirs(prediction_path, exist_ok=True)
 
-        searcher = GreedySearch(pl_pruned_model.model, val_dataset.output_language)
+        searcher = GreedySearch(
+            pl_pruned_model.pruner.model, val_dataset.output_language
+        )
         accuracy = evaluate_generation(
-            pl_pruned_model.model,
+            pl_pruned_model.pruner.model,
             searcher,
             val_loader,
             predictions_path=prediction_path,

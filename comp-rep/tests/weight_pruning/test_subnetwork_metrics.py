@@ -9,9 +9,14 @@ import torch
 from torch import nn
 
 from comp_rep.pruning.masked_base import MaskedLayer
-from comp_rep.pruning.masked_layernorm import ContinuousMaskLayerNorm
-from comp_rep.pruning.masked_linear import ContinuousMaskLinear
-from comp_rep.pruning.subnetwork_metrics import (
+from comp_rep.pruning.subnetwork_set_operations import complement_
+from comp_rep.pruning.weight_pruning.masked_weights_layernorm import (
+    ContinuousMaskedWeightsLayerNorm,
+)
+from comp_rep.pruning.weight_pruning.masked_weights_linear import (
+    ContinuousMaskedWeightsLinear,
+)
+from comp_rep.pruning.weight_pruning.subnetwork_weights_metrics import (
     intersection_over_minimum,
     intersection_over_union,
     intersection_remaining_weights_by_layer_and_module,
@@ -21,7 +26,6 @@ from comp_rep.pruning.subnetwork_metrics import (
     iou_models,
     union_remaining_weights_by_layer_and_module,
 )
-from comp_rep.pruning.subnetwork_set_operations import complement_
 
 
 class Transformer(nn.Module):
@@ -31,20 +35,20 @@ class Transformer(nn.Module):
         linear_weight_2 = nn.Parameter(torch.randn(output_dim, output_dim))
         norm_layer_weights = nn.Parameter(torch.randn(norm_shape))
 
-        linear_layer1 = ContinuousMaskLinear(
+        linear_layer1 = ContinuousMaskedWeightsLinear(
             weight=linear_weight_1, bias=None, ticket=True
         )
-        norm_layer1 = ContinuousMaskLayerNorm(
+        norm_layer1 = ContinuousMaskedWeightsLayerNorm(
             normalized_shape=norm_shape,
             weight=norm_layer_weights,
             bias=None,
             ticket=True,
         )
 
-        linear_layer2 = ContinuousMaskLinear(
+        linear_layer2 = ContinuousMaskedWeightsLinear(
             weight=linear_weight_2, bias=None, ticket=True
         )
-        norm_layer2 = ContinuousMaskLayerNorm(
+        norm_layer2 = ContinuousMaskedWeightsLayerNorm(
             normalized_shape=norm_shape,
             weight=norm_layer_weights,
             bias=None,
@@ -78,32 +82,32 @@ def modelB():
 
 
 @pytest.fixture
-def continuous_linear() -> ContinuousMaskLinear:
+def continuous_linear() -> ContinuousMaskedWeightsLinear:
     """
-    Fixture to create a ContinuousMaskLinear layer.
+    Fixture to create a ContinuousMaskedWeightsLinear layer.
 
     Returns:
-        ContinuousMaskLinear: The ContinuousMaskLinear layer.
+        ContinuousMaskedWeightsLinear: The ContinuousMaskedWeightsLinear layer.
     """
     input_dim = 4
     output_dim = 2
     linear_weight = nn.Parameter(torch.randn(output_dim, input_dim))
 
-    return ContinuousMaskLinear(weight=linear_weight, bias=None, ticket=True)
+    return ContinuousMaskedWeightsLinear(weight=linear_weight, bias=None, ticket=True)
 
 
 @pytest.fixture
-def continuous_layernorm() -> ContinuousMaskLayerNorm:
+def continuous_layernorm() -> ContinuousMaskedWeightsLayerNorm:
     """
-    Fixture to create a ContinuousMaskLayerNorm layer.
+    Fixture to create a ContinuousMaskedWeightsLayerNorm layer.
 
     Returns:
-        ContinuousMaskLayerNorm: The ContinuousMaskLayerNorm layer.
+        ContinuousMaskedWeightsLayerNorm: The ContinuousMaskedWeightsLayerNorm layer.
     """
     norm_shape = (2,)
     norm_layer_weights = nn.Parameter(torch.randn(norm_shape))
 
-    return ContinuousMaskLayerNorm(
+    return ContinuousMaskedWeightsLayerNorm(
         normalized_shape=norm_shape, weight=norm_layer_weights, bias=None, ticket=True
     )
 
@@ -288,7 +292,7 @@ def test_intersection_remaining_weights_by_layer_and_module(modelA, modelB):
 
     # check identity for some types
     layer_idx = [0, 1, 2, 3]
-    module_types = [ContinuousMaskLinear]
+    module_types = [ContinuousMaskedWeightsLinear]
     iou = intersection_remaining_weights_by_layer_and_module(
         [modelA], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
@@ -296,14 +300,14 @@ def test_intersection_remaining_weights_by_layer_and_module(modelA, modelB):
 
     # check fraction
     layer_idx = [0]
-    module_types = [ContinuousMaskLinear]
+    module_types = [ContinuousMaskedWeightsLinear]
     iou = intersection_remaining_weights_by_layer_and_module(
         [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
     assert iou == 3 / 8
 
     layer_idx = [0, 1, 2, 3]
-    module_types = [ContinuousMaskLinear]
+    module_types = [ContinuousMaskedWeightsLinear]
     iou = intersection_remaining_weights_by_layer_and_module(
         [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
@@ -311,7 +315,7 @@ def test_intersection_remaining_weights_by_layer_and_module(modelA, modelB):
 
     # check sum
     layer_idx = [0, 1, 2, 3]
-    module_types = [ContinuousMaskLinear]
+    module_types = [ContinuousMaskedWeightsLinear]
     iou = intersection_remaining_weights_by_layer_and_module(
         [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=False
     )
@@ -390,7 +394,7 @@ def test_union_remaining_weights_by_layer_and_module(modelA, modelB):
 
     # check identity for some types
     layer_idx = [0, 1, 2, 3]
-    module_types = [ContinuousMaskLinear]
+    module_types = [ContinuousMaskedWeightsLinear]
     iou = union_remaining_weights_by_layer_and_module(
         [modelA], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
@@ -398,14 +402,14 @@ def test_union_remaining_weights_by_layer_and_module(modelA, modelB):
 
     # check fraction
     layer_idx = [0]
-    module_types = [ContinuousMaskLinear]
+    module_types = [ContinuousMaskedWeightsLinear]
     iou = union_remaining_weights_by_layer_and_module(
         [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
     assert iou == 4 / 8
 
     layer_idx = [0, 1, 2, 3]
-    module_types = [ContinuousMaskLinear]
+    module_types = [ContinuousMaskedWeightsLinear]
     iou = union_remaining_weights_by_layer_and_module(
         [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
@@ -413,7 +417,7 @@ def test_union_remaining_weights_by_layer_and_module(modelA, modelB):
 
     # check sum
     layer_idx = [0, 1, 2, 3]
-    module_types = [ContinuousMaskLinear]
+    module_types = [ContinuousMaskedWeightsLinear]
     iou = union_remaining_weights_by_layer_and_module(
         [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=False
     )
@@ -491,7 +495,7 @@ def test_iou_by_layer_and_module(modelA, modelB):
 
     # check identity for some types
     layer_idx = [0, 1, 2, 3]
-    module_types = [ContinuousMaskLinear]
+    module_types = [ContinuousMaskedWeightsLinear]
     iou = iou_by_layer_and_module(
         [modelA],
         layer_idx=layer_idx,
@@ -501,14 +505,14 @@ def test_iou_by_layer_and_module(modelA, modelB):
 
     # check fraction
     layer_idx = [0]
-    module_types = [ContinuousMaskLinear]
+    module_types = [ContinuousMaskedWeightsLinear]
     iou = iou_by_layer_and_module(
         [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
     assert iou == 3 / 4
 
     layer_idx = [0, 1, 2, 3]
-    module_types = [ContinuousMaskLinear]
+    module_types = [ContinuousMaskedWeightsLinear]
     iou = iou_by_layer_and_module(
         [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
@@ -516,7 +520,7 @@ def test_iou_by_layer_and_module(modelA, modelB):
 
     # check sum
     layer_idx = [0, 1, 2, 3]
-    module_types = [ContinuousMaskLinear]
+    module_types = [ContinuousMaskedWeightsLinear]
     iou = iou_by_layer_and_module(
         [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=False
     )
@@ -594,7 +598,7 @@ def test_iom_by_layer_and_module(modelA, modelB):
 
     # check identity for some types
     layer_idx = [0, 1, 2, 3]
-    module_types = [ContinuousMaskLinear]
+    module_types = [ContinuousMaskedWeightsLinear]
     iou = iom_by_layer_and_module(
         [modelA],
         layer_idx=layer_idx,
@@ -604,14 +608,14 @@ def test_iom_by_layer_and_module(modelA, modelB):
 
     # check fraction
     layer_idx = [0]
-    module_types = [ContinuousMaskLinear]
+    module_types = [ContinuousMaskedWeightsLinear]
     iou = iom_by_layer_and_module(
         [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
     assert iou == 1
 
     layer_idx = [0, 1, 2, 3]
-    module_types = [ContinuousMaskLinear]
+    module_types = [ContinuousMaskedWeightsLinear]
     iou = iom_by_layer_and_module(
         [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
@@ -619,7 +623,7 @@ def test_iom_by_layer_and_module(modelA, modelB):
 
     # check sum version
     layer_idx = [0, 1, 2, 3]
-    module_types = [ContinuousMaskLinear]
+    module_types = [ContinuousMaskedWeightsLinear]
     iou = iom_by_layer_and_module(
         [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=False
     )
