@@ -17,9 +17,6 @@ import torch.nn as nn
 
 from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.data_prep.dataset import Lang
-
-# from comp_rep.models.lightning_models import LitTransformer
-# from comp_rep.models.lightning_pruned_models import LitPrunedModel
 from comp_rep.models.model import Transformer
 from comp_rep.pruning.activation_pruning.activation_pruner import ActivationPruner
 from comp_rep.pruning.weight_pruning.weight_pruner import WeightPruner
@@ -184,22 +181,6 @@ def create_transformer_from_checkpoint(model_path: Path) -> nn.Module:
         dropout,
     )
     return base_model
-
-
-# def load_model(
-#    path: Path,
-#    is_masked: bool,
-#    model: Optional[nn.Module],
-# ):
-#    if is_masked:
-#        pl_pruner = LitPrunedModel.load_from_checkpoint(path, model=model)
-#        model = pl_pruner.model
-#        pl_pruner.pruner.activate_ticket()
-#        pl_pruner.pruner.compute_and_update_masks()
-#    else:
-#        pl_transformer = LitTransformer.load_from_checkpoint(path)
-#        model = pl_transformer.model
-#    return model
 
 
 def init_pruner_by_name(
