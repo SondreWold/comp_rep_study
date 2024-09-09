@@ -3,7 +3,7 @@ Modules to find subnetworks via model weight pruning
 """
 
 from collections import defaultdict
-from typing import Any, Dict, Literal
+from typing import Any, Literal
 
 import torch
 import torch.nn as nn
@@ -28,13 +28,11 @@ class WeightPruner(Pruner):
     def __init__(
         self,
         model: nn.Module,
-        model_hparams: Dict,
         pruning_method: Literal["continuous", "sampled"],
         maskedlayer_kwargs: dict[str, Any],
     ):
         super(WeightPruner, self).__init__(
             model=model,
-            model_hparams=model_hparams,
             pruning_method=pruning_method,
             maskedlayer_kwargs=maskedlayer_kwargs,
         )
@@ -45,7 +43,7 @@ class WeightPruner(Pruner):
         maskedlayer_kwargs: dict[str, Any],
     ) -> None:
         """
-        Initializes the model pruning by replacing linear layers with masked layers.
+        Initializes the model pruning by replacing layers with masked layers.
 
         Args:
             pruning_method (Literal["continuous", "sampled"]): The pruning method to deploy.
@@ -64,7 +62,7 @@ class WeightPruner(Pruner):
                                 child.weight, child.bias, **maskedlayer_kwargs
                             ),
                         )
-                    elif pruning_method == "sampled":
+                    elif self.pruning_method == "sampled":
                         setattr(
                             module,
                             name,
@@ -206,7 +204,6 @@ if __name__ == "__main__":
 
     sampled_masked_model = WeightPruner(
         model,
-        model_hparams={},
         pruning_method="sampled",
         maskedlayer_kwargs=sampled_maskedlayer_kwargs,
     )
@@ -228,7 +225,6 @@ if __name__ == "__main__":
 
     cont_masked_model = WeightPruner(
         model,
-        model_hparams={},
         pruning_method="continuous",
         maskedlayer_kwargs=cont_maskedlayer_kwargs,
     )

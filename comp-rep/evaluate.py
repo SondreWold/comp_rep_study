@@ -13,9 +13,7 @@ from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
 from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.evaluator import evaluate_generation
-from comp_rep.models.lightning_models import LitTransformer
-from comp_rep.models.lightning_pruned_models import LitPrunedModel
-from comp_rep.utils import ValidateSavePath, load_tokenizer, setup_logging
+from comp_rep.utils import ValidateSavePath, load_model, load_tokenizer, setup_logging
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -124,19 +122,15 @@ def main() -> None:
     if args.is_masked:
         model_dir = args.save_path / args.pruning_task
         model_file = f"{args.pruning_type}_{args.pruning_method}_pruned_model.ckpt"
+        model_path = model_dir / model_file
         prediction_path = RESULT_DIR / args.pruning_task
-
-        pl_pruner = LitPrunedModel.load_from_checkpoint(model_dir / model_file, pruner=None)  # type: ignore
-        pl_pruner.pruner.activate_ticket()
-        pl_pruner.pruner.compute_and_update_masks()
-        model = pl_pruner.pruner.model
     else:
         model_dir = args.save_path / args.base_model_name
+        model_file = "base_model.ckpt"
+        model_path = model_dir / "base_model.ckpt"
         prediction_path = RESULT_DIR / args.base_model_name
-        pl_transformer = LitTransformer.load_from_checkpoint(
-            model_dir / "base_model.ckpt"
-        )  # type: ignore
-        model = pl_transformer.model
+
+    model = load_model(model_path=model_path, is_masked=args.is_masked)
     tokenizer = load_tokenizer(model_dir)
 
     # load data

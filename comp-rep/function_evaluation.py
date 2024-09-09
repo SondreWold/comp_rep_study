@@ -13,8 +13,12 @@ import torch
 
 from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.eval.evaluator import eval_task
-from comp_rep.models.lightning_pruned_models import LitPrunedModel
-from comp_rep.utils import ValidateTaskOptions, load_tokenizer, setup_logging
+from comp_rep.utils import (
+    ValidateTaskOptions,
+    load_model,
+    load_tokenizer,
+    setup_logging,
+)
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -90,15 +94,12 @@ def run_mask_evaluation(
         logging.info(f"Evaluating model: {mask_name}")
 
         # load masked model
-        path = save_path / mask_name
+        model_dir = save_path / mask_name
         model_name = f"{pruning_type}_{pruning_method}_pruned_model"
-        model_path = path / model_name
+        model_path = model_dir / model_name
 
-        pl_pruned_model = LitPrunedModel.load_from_checkpoint(model_path)  # type: ignore
-        pl_pruned_model.pruner.activate_ticket()
-        pl_pruned_model.pruner.compute_and_update_masks()
-        model = pl_pruned_model.pruner.model
-        tokenizer = load_tokenizer(path)
+        model = load_model(model_path=model_path, is_masked=True)
+        tokenizer = load_tokenizer(model_dir)
 
         # eval model
         for task_name in tasks:

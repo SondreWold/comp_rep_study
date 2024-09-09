@@ -37,7 +37,7 @@ class TestGenerationCallback(Callback):
 
         if epoch > 0 and epoch % self.frequency == 0:
             acc = evaluate_generation(
-                model=pl_module.pruner.model,
+                model=pl_module.model,
                 searcher=self.searcher,
                 test_loader=self.test_loader,
                 device=self.device,

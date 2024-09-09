@@ -12,8 +12,12 @@ import torch
 
 from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.eval.evaluator import eval_task
-from comp_rep.models.lightning_models import LitTransformer
-from comp_rep.utils import ValidateTaskOptions, load_tokenizer, setup_logging
+from comp_rep.utils import (
+    ValidateTaskOptions,
+    load_model,
+    load_tokenizer,
+    setup_logging,
+)
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -71,8 +75,7 @@ def run_base_evaluation(
 
     # load base model
     model_path = save_path / "base_model.ckpt"
-    pl_transformer = LitTransformer.load_from_checkpoint(model_path)  # type: ignore
-    model = pl_transformer.model
+    model = load_model(model_path=model_path, is_masked=False)
     tokenizer = load_tokenizer(save_path)
 
     # eval model

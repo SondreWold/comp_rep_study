@@ -113,6 +113,9 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """
+    Main script.
+    """
     args = parse_args()
 
     set_seed(args.seed)

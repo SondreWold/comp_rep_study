@@ -3,29 +3,61 @@ Pytorch Lightning module for the Pruned Transformer model.
 """
 
 import argparse
-from typing import Any, Dict
+from typing import Any, Dict, Literal
 
 import lightning as L
 import torch.optim as optim
+from torch import nn
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 import wandb
 from comp_rep.loss import get_regularized_logits_loss
-from comp_rep.models.model import Transformer
-from comp_rep.pruning.pruner import Pruner
-from comp_rep.utils import pruner_from_config
+from comp_rep.pruning.activation_pruning.activation_pruner import ActivationPruner
+from comp_rep.pruning.weight_pruning.weight_pruner import WeightPruner
 
 
 class LitPrunedModel(L.LightningModule):
     def __init__(
         self,
         args: argparse.Namespace,
-        pruner: Pruner,
+        model: nn.Module,
+        pruning_type: Literal["activations", "weights"],
+        pruning_kwargs: Dict,
     ):
         super().__init__()
-        self.save_hyperparameters(ignore=["pruner"])
+        self.save_hyperparameters(ignore=["model"])
         self.args = args
-        self.pruner = pruner
+
+        # init model and pruner in class
+        self.model = model
+        self.pruner = self.init_pruner_by_name(
+            pruning_type=pruning_type, model=self.model, pruner_kwargs=pruning_kwargs
+        )
+
+    @staticmethod
+    def init_pruner_by_name(
+        pruning_type: Literal["activations", "weights"],
+        model: nn.Module,
+        pruner_kwargs: Dict,
+    ) -> ActivationPruner | WeightPruner:
+        """
+        Initializes a pruner by its class name.
+
+        Args:
+            pruning_type (Literal["activations", "weights"]): The pruning type of the pruner to initialize.
+            pruner_kwargs (Dict): Keyword arguments to pass to the pruner's constructor.
+
+        Returns:
+            ActivationPruner | WeightPruner: An instance of the specified pruner class.
+        """
+        if pruning_type == "activations":
+            return ActivationPruner(model=model, **pruner_kwargs)
+        elif pruning_type == "weights":
+            return WeightPruner(model=model, **pruner_kwargs)
+        else:
+            raise ValueError(
+                f"Invalid pruning type for pruner: {pruning_type}! Must be 'activations' or 'weights'."
+            )
 
     def forward(self, batch: tuple):
         """
@@ -39,7 +71,7 @@ class LitPrunedModel(L.LightningModule):
         """
         source_ids, source_mask, target_ids, target_mask, _, _ = batch
         # Left shift the targets so that the last token predicts the EOS
-        logits = self.pruner.model(
+        logits = self.model(
             source_ids, source_mask, target_ids[:, :-1], target_mask[:, :-1]
         )  # [batch size, max seq len, vocab]
         return logits
@@ -51,7 +83,7 @@ class LitPrunedModel(L.LightningModule):
         Returns:
             torch.optim.Optimizer: The configured optimizer.
         """
-        optimizer = optim.AdamW(self.pruner.model.parameters(), lr=self.args.lr)
+        optimizer = optim.AdamW(self.model.parameters(), lr=self.args.lr)
         lr_scheduler = CosineAnnealingLR(
             optimizer=optimizer,
             T_max=self.args.T_max,
@@ -156,28 +188,24 @@ class LitPrunedModel(L.LightningModule):
         Returns:
             None
         """
-        checkpoint["pruner_state_dict"] = self.pruner.model.state_dict()
-        checkpoint["pruner_config"] = self.pruner.get_config()
-        checkpoint["pruning_type"] = self.pruner.__class__.__name__
-
-    def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
-        """
-        Loads the pruner model from a given checkpoint.
-
-        Args:
-            checkpoint (Dict[str, Any]): A dictionary containing the pruner type, configuration, model hyperparameters, and state dictionary.
-
-        Returns:
-            None
-        """
-        pruning_type = checkpoint["pruning_type"]
-        pruner_config = checkpoint["pruner_config"]
-        model_hparams = checkpoint["pruner_config"]["model_hparams"]
-
-        print(pruner_config)
-        print(model_hparams)
-        model = Transformer(**model_hparams)
-        self.pruner = pruner_from_config(
-            pruning_type=pruning_type, config=pruner_config, model=model
+        setattr(
+            checkpoint["hyper_parameters"]["args"],
+            "input_vocabulary_size",
+            self.model.input_vocabulary_size,
         )
-        self.pruner.model.load_state_dict(checkpoint["pruner_state_dict"])
+        setattr(
+            checkpoint["hyper_parameters"]["args"],
+            "output_vocabulary_size",
+            self.model.output_vocabulary_size,
+        )
+        setattr(
+            checkpoint["hyper_parameters"]["args"],
+            "num_transformer_layers",
+            self.model.num_transformer_layers,
+        )
+        setattr(
+            checkpoint["hyper_parameters"]["args"],
+            "hidden_size",
+            self.model.hidden_size,
+        )
+        setattr(checkpoint["hyper_parameters"]["args"], "dropout", self.model.dropout)

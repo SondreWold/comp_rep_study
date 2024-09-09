@@ -3,7 +3,7 @@ Modules to find subnetworks via model activation pruning
 """
 
 from collections import defaultdict
-from typing import Any, Dict, Literal
+from typing import Any, Literal
 
 import torch
 import torch.nn as nn
@@ -26,13 +26,11 @@ class ActivationPruner(Pruner):
     def __init__(
         self,
         model: nn.Module,
-        model_hparams: Dict,
         pruning_method: Literal["continuous", "sampled"],
         maskedlayer_kwargs: dict[str, Any],
     ):
         super(ActivationPruner, self).__init__(
             model=model,
-            model_hparams=model_hparams,
             pruning_method=pruning_method,
             maskedlayer_kwargs=maskedlayer_kwargs,
         )
@@ -43,7 +41,7 @@ class ActivationPruner(Pruner):
         maskedlayer_kwargs: dict[str, Any],
     ) -> None:
         """
-        Initializes the model pruning by replacing linear layers with masked layers.
+        Initializes the model pruning by replacing layers with masked layers.
 
         Args:
             pruning_method (Literal["continuous", "sampled"]): The pruning method to deploy.
@@ -51,7 +49,7 @@ class ActivationPruner(Pruner):
         """
         self.freeze_initial_model()
 
-        def replace_layer(module: nn.Module) -> None:
+        def replace_activation_layer(module: nn.Module) -> None:
             for name, child in module.named_children():
                 if any(
                     isinstance(child, pruning_node) for pruning_node in PRUNED_NODES
@@ -66,16 +64,16 @@ class ActivationPruner(Pruner):
                                 **maskedlayer_kwargs,
                             ),
                         )
-                    elif pruning_method == "sampled":
+                    elif self.pruning_method == "sampled":
                         raise ValueError(
                             "Sampled pruning not yet implemented for activation pruning."
                         )
                     else:
                         raise ValueError("Invalid pruning strategy method provided")
                 else:
-                    replace_layer(child)
+                    replace_activation_layer(child)
 
-        replace_layer(self.model)
+        replace_activation_layer(self.model)
 
     def get_remaining_mask(self) -> dict:
         """
@@ -146,7 +144,6 @@ if __name__ == "__main__":
 
     cont_masked_model = ActivationPruner(
         model,
-        model_hparams={},
         pruning_method="continuous",
         maskedlayer_kwargs=cont_maskedlayer_kwargs,
     )

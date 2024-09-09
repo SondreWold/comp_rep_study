@@ -37,9 +37,7 @@ def modelA():
         "dropout": dropout,
     }
     model = Transformer(**model_hparams)
-    pruner = WeightPruner(
-        model, model_hparams, "continuous", {"mask_initial_value": 0.1}
-    )
+    pruner = WeightPruner(model, "continuous", {"mask_initial_value": 0.1})
     pruner.activate_ticket()
     change_b_matrix_(model)
     return model
@@ -60,9 +58,7 @@ def modelB():
         "dropout": dropout,
     }
     model = Transformer(**model_hparams)
-    pruner = WeightPruner(
-        model, model_hparams, "continuous", {"mask_initial_value": 0.1}
-    )
+    pruner = WeightPruner(model, "continuous", {"mask_initial_value": 0.1})
     pruner.activate_ticket()
     change_b_matrix_(model, True)
     return model
@@ -83,9 +79,7 @@ def modelC():
         "dropout": dropout,
     }
     model = Transformer(**model_hparams)
-    pruner = WeightPruner(
-        model, model_hparams, "continuous", {"mask_initial_value": 0.1}
-    )
+    pruner = WeightPruner(model, "continuous", {"mask_initial_value": 0.1})
     pruner.activate_ticket()
     for module in model.modules():
         if isinstance(module, MaskedLayer):

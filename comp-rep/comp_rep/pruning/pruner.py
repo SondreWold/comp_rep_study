@@ -3,7 +3,7 @@ Modules to find subnetworks via model pruning
 """
 
 import abc
-from typing import Any, Dict, Literal
+from typing import Any, Literal
 
 import torch.nn as nn
 
@@ -24,12 +24,10 @@ class Pruner(abc.ABC):
     def __init__(
         self,
         model: nn.Module,
-        model_hparams: Dict,
         pruning_method: Literal["continuous", "sampled"],
         maskedlayer_kwargs: dict[str, Any],
     ):
         self.model = model
-        self.model_hparams = model_hparams
         self.pruning_method = pruning_method
         self.maskedlayer_kwargs = maskedlayer_kwargs
         self.init_model_pruning(pruning_method, maskedlayer_kwargs)
@@ -48,7 +46,7 @@ class Pruner(abc.ABC):
         maskedlayer_kwargs: dict[str, Any],
     ) -> None:
         """
-        Initializes the model pruning by replacing linear layers with masked layers.
+        Initializes the model pruning by replacing layers with masked layers.
 
         Args:
             pruning_method (Literal["continuous", "sampled"]): The pruning method to deploy.
@@ -114,35 +112,3 @@ class Pruner(abc.ABC):
             if isinstance(m, MaskedLayer):
                 norms += m.compute_l1_norm()
         return norms
-
-    def get_config(self):
-        """
-        Return a dictionary of the configuration (hyperparameters) needed to reconstruct the pruner.
-
-        Returns:
-            dict: A dictionary containing the hyperparameters.
-        """
-        return {
-            "model_hparams": self.model_hparams,
-            "pruning_method": self.pruning_method,
-            "maskedlayer_kwargs": self.maskedlayer_kwargs,
-        }
-
-    @classmethod
-    def from_config(cls, config: Dict, model: nn.Module):
-        """
-        Reconstruct the pruner from a config dictionary and a model.
-
-        Args:
-            config (Dict): A dictionary containing the configuration (hyperparameters).
-            model (nn.Module): The PyTorch model to prune.
-
-        Returns:
-            Pruner: An instance of Pruner initialized with the config.
-        """
-        return cls(
-            model=model,
-            model_hparams=config["model_hparams"],
-            pruning_method=config["pruning_method"],
-            maskedlayer_kwargs=config["maskedlayer_kwargs"],
-        )

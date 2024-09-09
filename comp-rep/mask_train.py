@@ -7,7 +7,7 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict
 
 import lightning as L
 import torch
@@ -26,7 +26,6 @@ from comp_rep.models.lightning_pruned_models import LitPrunedModel
 from comp_rep.utils import (
     ValidateSavePath,
     ValidateWandbPath,
-    init_pruner_by_name,
     load_tokenizer,
     save_tokenizer,
     set_seed,
@@ -145,11 +144,6 @@ def parse_args() -> argparse.Namespace:
         "--eta_min", type=float, default=0.0, help="Minimum learning rate."
     )
     parser.add_argument(
-        "--hidden_size", type=int, default=512, help="Size of hidden dimension."
-    )
-    parser.add_argument("--layers", type=int, default=6, help="Number of layers.")
-    parser.add_argument("--dropout", type=float, default=0.1, help="Dropout parameter.")
-    parser.add_argument(
         "--gradient_clip_val",
         type=float,
         default=0.0,
@@ -166,7 +160,41 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def get_pruner_kwargs(args: argparse.Namespace) -> Dict:
+    """
+    Returns a dictionary of keyword arguments for a pruner based on the provided command-line arguments.
+
+    Args:
+        args (argparse.Namespace): Command-line arguments.
+
+    Returns:
+        Dict: Keyword arguments for a pruner.
+    """
+    pruning_methods_kwargs: dict[str, Any] = {}
+
+    if args.pruning_method == "continuous":
+        pruning_methods_kwargs["temperature_increase"] = args.max_temp ** (
+            1.0 / args.epochs
+        )
+        pruning_methods_kwargs["mask_initial_value"] = args.mask_initial_value
+    elif args.pruning_method == "sampled":
+        pruning_methods_kwargs["tau"] = args.tau
+        pruning_methods_kwargs["num_masks"] = args.num_masks
+    else:
+        raise ValueError("Invalid pruning strategy method provided")
+
+    pruner_kwargs = {
+        "pruning_method": args.pruning_method,
+        "maskedlayer_kwargs": pruning_methods_kwargs,
+    }
+
+    return pruner_kwargs
+
+
 def main() -> None:
+    """
+    Main script.
+    """
     args = parse_args()
 
     set_seed(args.seed)
@@ -191,7 +219,6 @@ def main() -> None:
     # load data
     data_dir = DATA_DIR / "function_tasks" if args.subtask != "base_tasks" else DATA_DIR
     base_model_dir = args.save_path / args.base_model_name
-    pruned_model_dir = args.save_path / args.subtask
 
     train_tokenizer = load_tokenizer(base_model_dir)
     train_dataset = SequenceDataset(
@@ -225,45 +252,22 @@ def main() -> None:
     # load model
     lit_transformer_model = LitTransformer.load_from_checkpoint(
         checkpoint_path=base_model_dir / "base_model.ckpt",
-        args=args,
     )  # type: ignore
-
     transformer_model = lit_transformer_model.model
-    transformer_model_hparams = {
-        "input_vocabulary_size": transformer_model.input_vocabulary_size,
-        "output_vocabulary_size": transformer_model.output_vocabulary_size,
-        "num_transformer_layers": transformer_model.num_transformer_layers,
-        "hidden_size": transformer_model.hidden_size,
-        "dropout": transformer_model.dropout,
-    }
 
-    # init pruner
-    pruning_methods_kwargs: dict[str, Any] = {}
+    # pruner
+    pruned_model_dir = args.save_path / args.subtask
 
-    if args.pruning_method == "continuous":
-        pruning_methods_kwargs["temperature_increase"] = args.max_temp ** (
-            1.0 / args.epochs
-        )
-        pruning_methods_kwargs["mask_initial_value"] = args.mask_initial_value
-    elif args.pruning_method == "sampled":
-        pruning_methods_kwargs["tau"] = args.tau
-        pruning_methods_kwargs["num_masks"] = args.num_masks
-    else:
-        raise ValueError("Invalid pruning strategy method provided")
-
-    pruner_kwargs = {
-        "model": transformer_model,
-        "model_hparams": transformer_model_hparams,
-        "pruning_method": args.pruning_method,
-        "maskedlayer_kwargs": pruning_methods_kwargs,
-    }
-    pruner = init_pruner_by_name(
-        pruning_type=args.pruning_type, pruner_kwargs=pruner_kwargs
-    )
+    pruner_kwargs = get_pruner_kwargs(args)
     args.T_max = args.epochs * len(train_loader)
 
-    pl_pruned_model = LitPrunedModel(args=args, pruner=pruner)
-    searcher = GreedySearch(pl_pruned_model.pruner.model, val_dataset.output_language)
+    pl_pruned_model = LitPrunedModel(
+        args=args,
+        model=transformer_model,
+        pruning_type=args.pruning_type,
+        pruning_kwargs=pruner_kwargs,
+    )
+    searcher = GreedySearch(pl_pruned_model.model, val_dataset.output_language)
 
     # callbacks
     lr_monitor = LearningRateMonitor(logging_interval="step")
@@ -279,6 +283,7 @@ def main() -> None:
         # checkpoint saving
         model_ckpt_name = f"{args.pruning_type}_{args.pruning_method}_pruned_model.ckpt"
         model_ckpt_path = pruned_model_dir / model_ckpt_name
+
         if os.path.exists(model_ckpt_path):
             logging.warning(
                 f"File: {model_ckpt_path} already exists. File will be overwritten."
@@ -286,11 +291,11 @@ def main() -> None:
             os.remove(model_ckpt_path)
 
         checkpoint_callback = ModelCheckpoint(
-            monitor="val_loss",
             dirpath=pruned_model_dir,
             filename=model_ckpt_name.split(".")[0],
             save_top_k=1,
-            mode="min",
+            every_n_epochs=2,
+            save_on_train_epoch_end=True,
         )
         callbacks.append(checkpoint_callback)
 
@@ -307,16 +312,15 @@ def main() -> None:
 
     # evaluate model
     if args.eval:
+        pl_pruned_model.pruner.activate_ticket()
+
         prediction_path = (
             RESULT_DIR / args.subtask / args.pruning_type / args.pruning_method
         )
         os.makedirs(prediction_path, exist_ok=True)
-
-        searcher = GreedySearch(
-            pl_pruned_model.pruner.model, val_dataset.output_language
-        )
+        searcher = GreedySearch(pl_pruned_model.model, val_dataset.output_language)
         accuracy = evaluate_generation(
-            pl_pruned_model.pruner.model,
+            pl_pruned_model.model,
             searcher,
             val_loader,
             predictions_path=prediction_path,
