@@ -168,7 +168,7 @@ def main() -> None:
 
     # checkpoint saving
     model_ckpt_name = "base_model.ckpt"
-    model_ckpt_path = base_model_dir / "base_model.ckpt"
+    model_ckpt_path = base_model_dir / model_ckpt_name
     if os.path.exists(model_ckpt_path):
         logging.warning(
             f"File: {model_ckpt_path} already exists. File will be overwritten."
