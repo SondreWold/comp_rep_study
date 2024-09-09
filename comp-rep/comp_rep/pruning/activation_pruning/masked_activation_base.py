@@ -44,6 +44,7 @@ class ContinuousMaskedActivationLayer(MaskedActivationLayer):
         mask_initial_value: float = 0.0,
         initial_temp: float = 1.0,
         temperature_increase: float = 1.0,
+        ablation_values: Tensor = torch.zeros(1),
     ):
         """
         Initializes the masked activation layer.
@@ -58,6 +59,7 @@ class ContinuousMaskedActivationLayer(MaskedActivationLayer):
         self.mask_initial_value = mask_initial_value
         self.temperature_increase = temperature_increase
         self.temp = initial_temp
+        self.ablation_values = ablation_values.to(next(self.layer.parameters()).device)
 
         self.s_matrix = self.init_s_matrix()
         self.register_parameter("s_matrix", self.s_matrix)
@@ -99,7 +101,11 @@ class ContinuousMaskedActivationLayer(MaskedActivationLayer):
             Tensor: The masekd output activation tensor.
         """
         layer_activations = self.layer(*args, **kwargs)
-        masked_activations = layer_activations * self.b_matrix
+        masked_activations = (
+            layer_activations * self.b_matrix
+            + (1 - self.b_matrix) * self.ablation_values
+        )
+
         return masked_activations
 
     def update_temperature(self):
