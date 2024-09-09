@@ -294,7 +294,7 @@ def main() -> None:
             dirpath=pruned_model_dir,
             filename=model_ckpt_name.split(".")[0],
             save_top_k=1,
-            every_n_epochs=2,
+            every_n_epochs=10,
             save_on_train_epoch_end=True,
         )
         callbacks.append(checkpoint_callback)
