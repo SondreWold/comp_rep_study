@@ -162,7 +162,47 @@ def setup_logging(verbosity: int = 1) -> None:
     )
 
 
+def load_model(
+    model_path: Path,
+    is_masked: bool,
+    model: Optional[nn.Module] = None,
+):
+    """
+    Loads a model from a given checkpoint.
+
+    Args:
+        model_path (Path): The path to the model checkpoint.
+        is_masked (bool): Whether the model is masked or not.
+        model (Optional[nn.Module]): The model to load from the checkpoint. Defaults to None.
+
+    Returns:
+        nn.Module: The loaded model.
+    """
+    if is_masked:
+        if model is None:
+            model = create_transformer_from_checkpoint(model_path)
+
+        pl_pruner = LitPrunedModel.load_from_checkpoint(model_path, model=model)  # type: ignore
+        pl_pruner.pruner.activate_ticket()
+        pl_pruner.pruner.compute_and_update_masks()
+        model = pl_pruner.model
+    else:
+        pl_transformer = LitTransformer.load_from_checkpoint(model_path)  # type: ignore
+        model = pl_transformer.model
+
+    return model
+
+
 def create_transformer_from_checkpoint(model_path: Path) -> nn.Module:
+    """
+    Creates a transformer model from a given checkpoint.
+
+    Args:
+        model_path (Path): The path to the model checkpoint.
+
+    Returns:
+        nn.Module: The created transformer model.
+    """
     checkpoint = torch.load(model_path, map_location=torch.device("cpu"))
     input_vocabulary_size = vars(checkpoint["hyper_parameters"]["args"])[
         "input_vocabulary_size"
@@ -170,9 +210,12 @@ def create_transformer_from_checkpoint(model_path: Path) -> nn.Module:
     output_vocabulary_size = vars(checkpoint["hyper_parameters"]["args"])[
         "output_vocabulary_size"
     ]
-    num_transformer_layers = vars(checkpoint["hyper_parameters"]["args"])["layers"]
+    num_transformer_layers = vars(checkpoint["hyper_parameters"]["args"])[
+        "num_transformer_layers"
+    ]
     hidden_size = vars(checkpoint["hyper_parameters"]["args"])["hidden_size"]
     dropout = vars(checkpoint["hyper_parameters"]["args"])["dropout"]
+
     base_model = Transformer(
         input_vocabulary_size,
         output_vocabulary_size,
@@ -181,22 +224,6 @@ def create_transformer_from_checkpoint(model_path: Path) -> nn.Module:
         dropout,
     )
     return base_model
-
-
-def load_model(
-    path: Path,
-    is_masked: bool,
-    model: Optional[nn.Module],
-):
-    if is_masked:
-        pl_pruner = LitPrunedModel.load_from_checkpoint(path, model=model)
-        model = pl_pruner.model
-        pl_pruner.pruner.activate_ticket()
-        pl_pruner.pruner.compute_and_update_masks()
-    else:
-        pl_transformer = LitTransformer.load_from_checkpoint(path)
-        model = pl_transformer.model
-    return model
 
 
 def save_list_to_csv(file_path: Path, data: List[str]) -> None:

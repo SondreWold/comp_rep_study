@@ -7,7 +7,7 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict
 
 import lightning as L
 import torch
@@ -97,9 +97,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--subtask",
         type=str,
-        default="append",
+        default="copy",
         choices=POSSIBLE_TASKS,
         help="Name of subtask on which model has been pruned on.",
+    )
+    parser.add_argument(
+        "--pruning_type",
+        type=str,
+        choices=["weights", "activations"],
+        default="activations",
+        help="Pruning type (either 'weights' or 'activations').",
     )
     parser.add_argument(
         "--pruning_method",
@@ -110,17 +117,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--num_masks", type=int, default=4)
     parser.add_argument("--tau", type=float, default=1.0)
-    parser.add_argument("--mask_initial_value", type=float, default=0.05)
+    parser.add_argument("--mask_initial_value", type=float, default=0.2)
     parser.add_argument(
         "--mask_lambda",
         type=float,
-        default=1e-7,
+        default=1e-5,
         help="Lambda hyperparameter for continuous pruning.",
     )
     parser.add_argument(
         "--max_temp",
         type=int,
-        default=200,
+        default=100,
         help="Maximum temperature for continuous pruning.",
     )
 
@@ -136,11 +143,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--eta_min", type=float, default=0.0, help="Minimum learning rate."
     )
-    parser.add_argument(
-        "--hidden_size", type=int, default=512, help="Size of hidden dimension."
-    )
-    parser.add_argument("--layers", type=int, default=6, help="Number of layers.")
-    parser.add_argument("--dropout", type=float, default=0.1, help="Dropout parameter.")
     parser.add_argument(
         "--gradient_clip_val",
         type=float,
@@ -158,7 +160,41 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def get_pruner_kwargs(args: argparse.Namespace) -> Dict:
+    """
+    Returns a dictionary of keyword arguments for a pruner based on the provided command-line arguments.
+
+    Args:
+        args (argparse.Namespace): Command-line arguments.
+
+    Returns:
+        Dict: Keyword arguments for a pruner.
+    """
+    pruning_methods_kwargs: dict[str, Any] = {}
+
+    if args.pruning_method == "continuous":
+        pruning_methods_kwargs["temperature_increase"] = args.max_temp ** (
+            1.0 / args.epochs
+        )
+        pruning_methods_kwargs["mask_initial_value"] = args.mask_initial_value
+    elif args.pruning_method == "sampled":
+        pruning_methods_kwargs["tau"] = args.tau
+        pruning_methods_kwargs["num_masks"] = args.num_masks
+    else:
+        raise ValueError("Invalid pruning strategy method provided")
+
+    pruner_kwargs = {
+        "pruning_method": args.pruning_method,
+        "maskedlayer_kwargs": pruning_methods_kwargs,
+    }
+
+    return pruner_kwargs
+
+
 def main() -> None:
+    """
+    Main script.
+    """
     args = parse_args()
 
     set_seed(args.seed)
@@ -175,7 +211,7 @@ def main() -> None:
     wandb_logger = WandbLogger(
         entity="pmmon-Ludwig MaximilianUniversity of Munich",
         project="circomp-mask-training",
-        name=f"{args.pruning_method}_{args.subtask}_{formatted_datetime}",
+        name=f"{args.pruning_type}_{args.pruning_method}_{args.subtask}_{formatted_datetime}",
         config=config,
         save_dir=args.wandb_path,
     )
@@ -183,7 +219,6 @@ def main() -> None:
     # load data
     data_dir = DATA_DIR / "function_tasks" if args.subtask != "base_tasks" else DATA_DIR
     base_model_dir = args.save_path / args.base_model_name
-    pruned_model_dir = args.save_path / args.subtask
 
     train_tokenizer = load_tokenizer(base_model_dir)
     train_dataset = SequenceDataset(
@@ -215,30 +250,22 @@ def main() -> None:
     )
 
     # load model
-    transformer_model = LitTransformer.load_from_checkpoint(
+    lit_transformer_model = LitTransformer.load_from_checkpoint(
         checkpoint_path=base_model_dir / "base_model.ckpt",
-        args=args,
-    )
+    )  # type: ignore
+    transformer_model = lit_transformer_model.model
 
-    # init pruner
-    pruning_methods_kwargs: dict[str, Any] = {}
-    if args.pruning_method == "continuous":
-        pruning_methods_kwargs["temperature_increase"] = args.max_temp ** (
-            1.0 / args.epochs
-        )
-        pruning_methods_kwargs["mask_initial_value"] = args.mask_initial_value
-    elif args.pruning_method == "sampled":
-        pruning_methods_kwargs["tau"] = args.tau
-        pruning_methods_kwargs["num_masks"] = args.num_masks
-    else:
-        raise ValueError("Invalid pruning strategy method provided")
+    # pruner
+    pruned_model_dir = args.save_path / args.subtask
 
+    pruner_kwargs = get_pruner_kwargs(args)
     args.T_max = args.epochs * len(train_loader)
+
     pl_pruned_model = LitPrunedModel(
         args=args,
-        model=transformer_model.model,
-        pruning_method=args.pruning_method,
-        maskedlayer_kwargs=pruning_methods_kwargs,
+        model=transformer_model,
+        pruning_type=args.pruning_type,
+        pruning_kwargs=pruner_kwargs,
     )
     searcher = GreedySearch(pl_pruned_model.model, val_dataset.output_language)
 
@@ -253,12 +280,22 @@ def main() -> None:
     callbacks: list = [lr_monitor, acc_callback]
 
     if not args.sweep:
+        # checkpoint saving
+        model_ckpt_name = f"{args.pruning_type}_{args.pruning_method}_pruned_model.ckpt"
+        model_ckpt_path = pruned_model_dir / model_ckpt_name
+
+        if os.path.exists(model_ckpt_path):
+            logging.warning(
+                f"File: {model_ckpt_path} already exists. File will be overwritten."
+            )
+            os.remove(model_ckpt_path)
+
         checkpoint_callback = ModelCheckpoint(
-            monitor="val_loss",
             dirpath=pruned_model_dir,
-            filename=f"{args.pruning_method}_pruned_model",
+            filename=model_ckpt_name.split(".")[0],
             save_top_k=1,
-            mode="min",
+            every_n_epochs=10,
+            save_on_train_epoch_end=True,
         )
         callbacks.append(checkpoint_callback)
 
@@ -275,9 +312,12 @@ def main() -> None:
 
     # evaluate model
     if args.eval:
-        prediction_path = RESULT_DIR / args.subtask / args.pruning_method
-        os.makedirs(prediction_path, exist_ok=True)
+        pl_pruned_model.pruner.activate_ticket()
 
+        prediction_path = (
+            RESULT_DIR / args.subtask / args.pruning_type / args.pruning_method
+        )
+        os.makedirs(prediction_path, exist_ok=True)
         searcher = GreedySearch(pl_pruned_model.model, val_dataset.output_language)
         accuracy = evaluate_generation(
             pl_pruned_model.model,

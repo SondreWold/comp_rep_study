@@ -1,5 +1,5 @@
 """
-Masked linear layers for model pruning.
+Masked linear layers for model weight pruning.
 """
 
 from typing import Optional
@@ -9,11 +9,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from comp_rep.pruning.batch_ops import batch_bias_add, batch_matmul
-from comp_rep.pruning.masked_base import ContinuousMaskedLayer, SampledMaskedLayer
+from comp_rep.pruning.weight_pruning.batch_ops import batch_bias_add, batch_matmul
+from comp_rep.pruning.weight_pruning.masked_weights_base import (
+    ContinuousMaskedWeightsLayer,
+    SampledMaskedWeightsLayer,
+)
 
 
-class SampledMaskLinear(SampledMaskedLayer):
+class SampledMaskedWeightsLinear(SampledMaskedWeightsLayer):
     """
     A masked linear layer based on sampling. Masks are binarized to only keep or remove individual weights.
     This is achieved using a Gumbel-Sigmoid with a straight-through estimator.
@@ -36,7 +39,7 @@ class SampledMaskLinear(SampledMaskedLayer):
             tau (float): The tau parameter for the s_i computation. Default: 1.0.
             num_masks (int): The number of mask samples. Default: 1.
         """
-        super(SampledMaskLinear, self).__init__(
+        super(SampledMaskedWeightsLinear, self).__init__(
             weight=weight, bias=bias, ticket=ticket, tau=tau, num_masks=num_masks
         )
         self.out_features, self.in_features = weight.shape
@@ -69,12 +72,10 @@ class SampledMaskLinear(SampledMaskedLayer):
         return reshaped_output
 
     def extra_repr(self) -> str:
-        return "in_features={in_features}, out_features={out_features}, s_matrix={s_matrix.shape}, b_matrix={b_matrix.shape}".format(
-            **self.__dict__
-        )
+        return f"in_features={self.in_features}, out_features={self.out_features}, s_matrix={self.s_matrix.shape}, b_matrix={self.b_matrix.shape}"
 
 
-class ContinuousMaskLinear(ContinuousMaskedLayer):
+class ContinuousMaskedWeightsLinear(ContinuousMaskedWeightsLayer):
     """
     A masked linear layer based on continuous sparsification.
     Masks are binarized to only keep or remove individual weights.
@@ -88,7 +89,7 @@ class ContinuousMaskLinear(ContinuousMaskedLayer):
         temperature_increase: float = 1.0,
         ticket: bool = False,
     ):
-        super(ContinuousMaskLinear, self).__init__(
+        super(ContinuousMaskedWeightsLinear, self).__init__(
             weight=weight,
             bias=bias,
             ticket=ticket,
@@ -128,19 +129,21 @@ if __name__ == "__main__":
     linear_layer = nn.Linear(in_features, out_features, bias=True)
     print(f"Linear layer: \n{linear_layer}")
 
-    sampled_mask_linear = SampledMaskLinear(
+    sampled_mask_linear = SampledMaskedWeightsLinear(
         linear_layer.weight,
         linear_layer.bias,
         ticket=False,
         tau=tau,
         num_masks=num_mask,
     )
-    print(isinstance(sampled_mask_linear, SampledMaskedLayer))
+    print(isinstance(sampled_mask_linear, SampledMaskedWeightsLayer))
     print(f"Sampled masked layer: \n{sampled_mask_linear}")
 
     linear_layer = nn.Linear(in_features, out_features, bias=True)
-    cont_mask_linear = ContinuousMaskLinear(linear_layer.weight, linear_layer.bias)
-    print(isinstance(cont_mask_linear, ContinuousMaskedLayer))
+    cont_mask_linear = ContinuousMaskedWeightsLinear(
+        linear_layer.weight, linear_layer.bias
+    )
+    print(isinstance(cont_mask_linear, ContinuousMaskedWeightsLinear))
     print(f"Continuous  masked layer: \n{cont_mask_linear}")
 
     output_tensor_sample = sampled_mask_linear(input_tensor)
