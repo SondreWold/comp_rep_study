@@ -134,7 +134,6 @@ def main() -> None:
     else:
         tasks_to_run = [args.subtask]
 
-    # LOADING TO BE REPLACED
     model_path = args.model_path / "base_model.ckpt"
     model = load_model(model_path, False)
     model = model.to(DEVICE)
