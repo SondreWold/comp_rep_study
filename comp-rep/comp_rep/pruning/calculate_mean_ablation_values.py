@@ -15,7 +15,7 @@ from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
 from comp_rep.utils import load_model, load_tokenizer, set_seed
 
 CURR_FILE_PATH = Path(__file__).resolve()
-DATA_DIR = CURR_FILE_PATH.parents[1] / "data" / "function_tasks"
+DATA_DIR = CURR_FILE_PATH.parents[3] / "data" / "function_tasks"
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 
