@@ -1,3 +1,7 @@
+"""
+Loss computations.
+"""
+
 import lightning as L
 import torch.nn.functional as F
 

@@ -3,7 +3,7 @@ Pytorch Lightning module for the Pruned Transformer model.
 """
 
 import argparse
-from typing import Any, Literal
+from typing import Any, Dict, Literal
 
 import lightning as L
 import torch.optim as optim
@@ -12,7 +12,8 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 
 import wandb
 from comp_rep.loss import get_regularized_logits_loss
-from comp_rep.pruning.pruning import Pruner
+from comp_rep.pruning.activation_pruning.activation_pruner import ActivationPruner
+from comp_rep.pruning.weight_pruning.weight_pruner import WeightPruner
 
 
 class LitPrunedModel(L.LightningModule):
@@ -20,16 +21,43 @@ class LitPrunedModel(L.LightningModule):
         self,
         args: argparse.Namespace,
         model: nn.Module,
-        pruning_method: Literal["continuous", "sampled"],
-        maskedlayer_kwargs: dict[str, Any],
+        pruning_type: Literal["activations", "weights"],
+        pruning_kwargs: Dict,
     ):
         super().__init__()
         self.save_hyperparameters(ignore=["model"])
         self.args = args
-        self.pruning_method = pruning_method
 
+        # init model and pruner in class
         self.model = model
-        self.pruner = Pruner(self.model, pruning_method, maskedlayer_kwargs)
+        self.pruner = self.init_pruner_by_name(
+            pruning_type=pruning_type, model=self.model, pruner_kwargs=pruning_kwargs
+        )
+
+    @staticmethod
+    def init_pruner_by_name(
+        pruning_type: Literal["activations", "weights"],
+        model: nn.Module,
+        pruner_kwargs: Dict,
+    ) -> ActivationPruner | WeightPruner:
+        """
+        Initializes a pruner by its class name.
+
+        Args:
+            pruning_type (Literal["activations", "weights"]): The pruning type of the pruner to initialize.
+            pruner_kwargs (Dict): Keyword arguments to pass to the pruner's constructor.
+
+        Returns:
+            ActivationPruner | WeightPruner: An instance of the specified pruner class.
+        """
+        if pruning_type == "activations":
+            return ActivationPruner(model=model, **pruner_kwargs)
+        elif pruning_type == "weights":
+            return WeightPruner(model=model, **pruner_kwargs)
+        else:
+            raise ValueError(
+                f"Invalid pruning type for pruner: {pruning_type}! Must be 'activations' or 'weights'."
+            )
 
     def forward(self, batch: tuple):
         """
@@ -143,9 +171,41 @@ class LitPrunedModel(L.LightningModule):
 
     def on_train_epoch_end(self):
         """
-        Updates hyperparameters at the end of a training epoch and logs the average remaining weights.
+        Updates hyperparameters at the end of a training epoch and logs the average remaining mask elements.
         """
         self.pruner.update_hyperparameters()
 
-        remaining_weights = self.pruner.get_remaining_weights()
-        wandb.log(remaining_weights)  # need to use the wandb log here
+        remaining_mask_elements = self.pruner.get_remaining_mask()
+        wandb.log(remaining_mask_elements)  # need to use the wandb log here
+
+    def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+        """
+        Saves the state dictionary, configuration, and type of the pruner model to the checkpoint dictionary.
+
+        Args:
+            checkpoint (Dict[str, Any]): The dictionary to save the pruner state, configuration, and type.
+
+        Returns:
+            None
+        """
+        setattr(
+            checkpoint["hyper_parameters"]["args"],
+            "input_vocabulary_size",
+            self.model.input_vocabulary_size,
+        )
+        setattr(
+            checkpoint["hyper_parameters"]["args"],
+            "output_vocabulary_size",
+            self.model.output_vocabulary_size,
+        )
+        setattr(
+            checkpoint["hyper_parameters"]["args"],
+            "num_transformer_layers",
+            self.model.num_transformer_layers,
+        )
+        setattr(
+            checkpoint["hyper_parameters"]["args"],
+            "hidden_size",
+            self.model.hidden_size,
+        )
+        setattr(checkpoint["hyper_parameters"]["args"], "dropout", self.model.dropout)
