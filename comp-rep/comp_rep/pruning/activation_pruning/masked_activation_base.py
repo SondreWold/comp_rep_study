@@ -33,7 +33,7 @@ class MaskedActivationLayer(MaskedLayer):
 
 class ContinuousMaskedActivationLayer(MaskedActivationLayer):
     """
-    An abstract base class for a continuous masked activation layer.
+    A base class for a continuous masked activation layer.
     """
 
     def __init__(

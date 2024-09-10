@@ -13,6 +13,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 import wandb
 from comp_rep.loss import get_regularized_logits_loss
 from comp_rep.pruning.activation_pruning.activation_pruner import ActivationPruner
+from comp_rep.pruning.pruner import Pruner
 from comp_rep.pruning.weight_pruning.weight_pruner import WeightPruner
 
 
@@ -39,7 +40,7 @@ class LitPrunedModel(L.LightningModule):
         pruning_type: Literal["activations", "weights"],
         model: nn.Module,
         pruner_kwargs: Dict,
-    ) -> ActivationPruner | WeightPruner:
+    ) -> Pruner:
         """
         Initializes a pruner by its class name.
 
@@ -48,7 +49,7 @@ class LitPrunedModel(L.LightningModule):
             pruner_kwargs (Dict): Keyword arguments to pass to the pruner's constructor.
 
         Returns:
-            ActivationPruner | WeightPruner: An instance of the specified pruner class.
+            Pruner: An instance of the specified pruner class.
         """
         if pruning_type == "activations":
             return ActivationPruner(model=model, **pruner_kwargs)

@@ -97,7 +97,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--subtask",
         type=str,
-        default="append",
+        default="copy",
         choices=POSSIBLE_TASKS,
         help="Name of subtask on which model has been pruned on.",
     )
@@ -117,17 +117,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--num_masks", type=int, default=4)
     parser.add_argument("--tau", type=float, default=1.0)
-    parser.add_argument("--mask_initial_value", type=float, default=0.05)
+    parser.add_argument("--mask_initial_value", type=float, default=0.2)
     parser.add_argument(
         "--mask_lambda",
         type=float,
-        default=1e-7,
+        default=1e-5,
         help="Lambda hyperparameter for continuous pruning.",
     )
     parser.add_argument(
         "--max_temp",
         type=int,
-        default=200,
+        default=100,
         help="Maximum temperature for continuous pruning.",
     )
 
@@ -211,7 +211,7 @@ def main() -> None:
     wandb_logger = WandbLogger(
         entity="pmmon-Ludwig MaximilianUniversity of Munich",
         project="circomp-mask-training",
-        name=f"{args.pruning_method}_{args.subtask}_{formatted_datetime}",
+        name=f"{args.pruning_type}_{args.pruning_method}_{args.subtask}_{formatted_datetime}",
         config=config,
         save_dir=args.wandb_path,
     )
