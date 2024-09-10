@@ -12,12 +12,7 @@ from tqdm import tqdm
 
 from comp_rep.constants import MASK_TASKS
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
-from comp_rep.utils import (
-    create_transformer_from_checkpoint,
-    load_model,
-    load_tokenizer,
-    set_seed,
-)
+from comp_rep.utils import load_model, load_tokenizer, set_seed
 
 CURR_FILE_PATH = Path(__file__).resolve()
 DATA_DIR = CURR_FILE_PATH.parents[1] / "data" / "function_tasks"
@@ -141,8 +136,7 @@ def main() -> None:
 
     # LOADING TO BE REPLACED
     model_path = args.model_path / "base_model.ckpt"
-    model = create_transformer_from_checkpoint(model_path)
-    model = load_model(model_path, False, model)
+    model = load_model(model_path, False)
     model = model.to(DEVICE)
     model.eval()
     model = NNsight(model)
