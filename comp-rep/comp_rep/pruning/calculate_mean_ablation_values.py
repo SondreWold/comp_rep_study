@@ -16,6 +16,7 @@ from comp_rep.utils import load_model, load_tokenizer, set_seed
 
 CURR_FILE_PATH = Path(__file__).resolve()
 DATA_DIR = CURR_FILE_PATH.parents[3] / "data" / "function_tasks"
+SAVE_DIR = CURR_FILE_PATH.parents[0] / "mean_ablation_values"
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 
@@ -47,11 +48,6 @@ def parse_args() -> argparse.Namespace:
         "--model_path",
         type=Path,
         help="Path to the model you wish to get the mean ablation values from",
-    )
-    parser.add_argument(
-        "--save_path",
-        type=Path,
-        help="Path to where you want to save the mean ablation values",
     )
     parser.add_argument(
         "--n",
@@ -141,8 +137,8 @@ def main() -> None:
     model = NNsight(model)
     tokenizer = load_tokenizer(args.model_path)
 
-    if not os.path.exists(args.save_path):
-        os.makedirs(args.save_path)
+    if not os.path.exists(SAVE_DIR):
+        os.makedirs(SAVE_DIR)
 
     for task in tasks_to_run:
         print(f"Calculating mean activation values for task: {task}")
@@ -161,7 +157,7 @@ def main() -> None:
 
         distribution = get_mean_activations(model, train_loader, args.n)
 
-        with open(args.save_path / f"{task}_mean_ablation_values.json", "w") as f:
+        with open(SAVE_DIR / f"{task}_mean_ablation_values.json", "w") as f:
             json.dump(distribution, f, indent=4)
 
 
