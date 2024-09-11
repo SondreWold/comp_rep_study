@@ -109,19 +109,19 @@ def get_mean_activations(model: NNsight, data_loader: DataLoader, n: int) -> dic
                 d_sa_output = model.decoder.layers[i].self_attention.nns_output.save()
 
             distribution[f"model.encoder.layers[{i}].feed_forward"].append(
-                torch.mean(e_ff_output, dim=1)
+                torch.mean(e_ff_output, dim=1).detach().cpu().clone()
             )
             distribution[f"model.encoder.layers[{i}].self_attention"].append(
-                torch.mean(e_sa_output, dim=1)
+                torch.mean(e_sa_output, dim=1).detach().cpu().clone()
             )
             distribution[f"model.decoder.layers[{i}].self_attention"].append(
-                torch.mean(d_sa_output, dim=1)
+                torch.mean(d_sa_output, dim=1).detach().cpu().clone()
             )
             distribution[f"model.decoder.layers[{i}].cross_attention"].append(
-                torch.mean(d_ca_output, dim=1)
+                torch.mean(d_ca_output, dim=1).detach().cpu().clone()
             )
             distribution[f"model.decoder.layers[{i}].feed_forward"].append(
-                torch.mean(d_ff_output, dim=1)
+                torch.mean(d_ff_output, dim=1).detach().cpu().clone()
             )
 
         if data_loader.batch_size is not None:
