@@ -2,7 +2,9 @@
 Modules to find subnetworks via model activation pruning
 """
 
+import json
 from collections import defaultdict
+from pathlib import Path
 from typing import Any, Literal
 
 import torch
@@ -16,6 +18,8 @@ from comp_rep.pruning.activation_pruning.masked_activation_base import (
 from comp_rep.pruning.pruner import Pruner
 
 PRUNED_NODES = [FeedForward, MultiHeadAttention]
+CURR_FILE_PATH = Path(__file__).resolve()
+MEAN_ABLATION_VALUES_PATH = CURR_FILE_PATH.parents[1] / "mean_ablation_values"
 
 
 class ActivationPruner(Pruner):
@@ -27,8 +31,13 @@ class ActivationPruner(Pruner):
         self,
         model: nn.Module,
         pruning_method: Literal["continuous", "sampled"],
+        mean_ablate: bool,
+        subtask: str,
         maskedlayer_kwargs: dict[str, Any],
     ):
+
+        self.mean_ablate = mean_ablate
+        self.subtask = subtask
         super(ActivationPruner, self).__init__(
             model=model,
             pruning_method=pruning_method,
@@ -48,12 +57,37 @@ class ActivationPruner(Pruner):
             maskedlayer_kwargs (dict[str, Any]): Additional keyword-arguments for the masked layer.
         """
         self.freeze_initial_model()
+        if self.mean_ablate:
+            try:
+                with open(
+                    MEAN_ABLATION_VALUES_PATH
+                    / f"{self.subtask.lower()}_mean_ablation_values.json"
+                ) as mean_ablation_values_files:
+                    data_raw = json.load(mean_ablation_values_files)
+                    ablation_data = {}
+                    for key, value in data_raw.items():
+                        new_key = key.replace("[", ".").replace("]", "")
+                        ablation_data[new_key] = value
+            except IOError:
+                raise IOError(
+                    f"Failed to read mean ablation values from {MEAN_ABLATION_VALUES_PATH}"
+                )
 
-        def replace_activation_layer(module: nn.Module) -> None:
+        def replace_activation_layer(module: nn.Module, parent_name: str) -> None:
             for name, child in module.named_children():
+                parents = f"{parent_name}.{name}"
                 if any(
                     isinstance(child, pruning_node) for pruning_node in PRUNED_NODES
                 ):
+                    if self.mean_ablate:
+                        try:
+                            ablation_value = torch.tensor(ablation_data[parents])
+                        except KeyError:
+                            raise KeyError(
+                                "Failed to match model name to ablation value key"
+                            )
+                    else:
+                        ablation_value = torch.zeros(1)
                     if pruning_method == "continuous":
                         setattr(
                             module,
@@ -61,6 +95,7 @@ class ActivationPruner(Pruner):
                             ContinuousMaskedActivationLayer(
                                 layer=child,
                                 hidden_size=child.hidden_size,
+                                ablation_values=ablation_value,
                                 **maskedlayer_kwargs,
                             ),
                         )
@@ -71,9 +106,9 @@ class ActivationPruner(Pruner):
                     else:
                         raise ValueError("Invalid pruning strategy method provided")
                 else:
-                    replace_activation_layer(child)
+                    replace_activation_layer(child, parents)
 
-        replace_activation_layer(self.model)
+        replace_activation_layer(self.model, "model")
 
     def get_remaining_mask(self) -> dict:
         """
@@ -140,11 +175,16 @@ if __name__ == "__main__":
         "ticket": False,
     }
     model = SimpleModel()
+    pruning_method: Literal["continuous"] = "continuous"
+    subtask = "copy"
+    mean_ablate = False
     print(f"Toy model: \n{model}")
 
     cont_masked_model = ActivationPruner(
         model,
-        pruning_method="continuous",
+        pruning_method,
+        mean_ablate,
+        subtask,
         maskedlayer_kwargs=cont_maskedlayer_kwargs,
     )
     print(f"Continuous Masked model: \n{model}")

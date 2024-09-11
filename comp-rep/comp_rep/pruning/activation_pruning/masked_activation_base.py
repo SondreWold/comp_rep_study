@@ -40,11 +40,11 @@ class ContinuousMaskedActivationLayer(MaskedActivationLayer):
         self,
         layer: nn.Module,
         hidden_size: int,
+        ablation_values: Tensor = torch.zeros(1),
         ticket: bool = False,
         mask_initial_value: float = 0.0,
         initial_temp: float = 1.0,
         temperature_increase: float = 1.0,
-        ablation_values: Tensor = torch.zeros(1),
     ):
         """
         Initializes the masked activation layer.
