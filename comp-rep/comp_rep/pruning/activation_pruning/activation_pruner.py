@@ -63,11 +63,7 @@ class ActivationPruner(Pruner):
                     MEAN_ABLATION_VALUES_PATH
                     / f"{self.subtask.lower()}_mean_ablation_values.json"
                 ) as mean_ablation_values_files:
-                    data_raw = json.load(mean_ablation_values_files)
-                    ablation_data = {}
-                    for key, value in data_raw.items():
-                        new_key = key.replace("[", ".").replace("]", "")
-                        ablation_data[new_key] = value
+                    ablation_data = json.load(mean_ablation_values_files)
             except IOError:
                 raise IOError(
                     f"Failed to read mean ablation values from {MEAN_ABLATION_VALUES_PATH}"
