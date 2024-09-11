@@ -6,7 +6,6 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List
 
-import numpy as np
 import torch
 from nnsight import NNsight
 from torch.utils.data import DataLoader
@@ -110,19 +109,19 @@ def get_mean_activations(model: NNsight, data_loader: DataLoader, n: int) -> dic
                 d_sa_output = model.decoder.layers[i].self_attention.nns_output.save()
 
             distribution[f"model.encoder.layers[{i}].feed_forward"].append(
-                torch.mean(e_ff_output).item()
+                torch.mean(e_ff_output, dim=1)
             )
             distribution[f"model.encoder.layers[{i}].self_attention"].append(
-                torch.mean(e_sa_output).item()
+                torch.mean(e_sa_output, dim=1)
             )
             distribution[f"model.decoder.layers[{i}].self_attention"].append(
-                torch.mean(d_sa_output).item()
+                torch.mean(d_sa_output, dim=1)
             )
             distribution[f"model.decoder.layers[{i}].cross_attention"].append(
-                torch.mean(d_ca_output).item()
+                torch.mean(d_ca_output, dim=1)
             )
             distribution[f"model.decoder.layers[{i}].feed_forward"].append(
-                torch.mean(d_ff_output).item()
+                torch.mean(d_ff_output, dim=1)
             )
 
         if data_loader.batch_size is not None:
@@ -136,7 +135,9 @@ def get_mean_activations(model: NNsight, data_loader: DataLoader, n: int) -> dic
             break
 
     for module, values in distribution.items():
-        distribution.update({module: np.mean(values)})
+        new_v = torch.mean(torch.stack(values), dim=0)
+        new_v = torch.mean(new_v, dim=0)
+        distribution.update({module: new_v.tolist()})
 
     return distribution
 
