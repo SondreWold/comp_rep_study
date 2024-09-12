@@ -8,6 +8,7 @@ from typing import Dict, List
 
 import torch
 from nnsight import NNsight
+from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -76,7 +77,7 @@ def get_mean_activations(model: NNsight, data_loader: DataLoader, n: int) -> dic
     Returns:
         dict: A dictionary where the keys are the names of the model's layers and the values are the mean activations of those layers.
     """
-    distribution: Dict[str, List[float]] = defaultdict(list)
+    distribution: Dict[str, List[Tensor]] = defaultdict(list)
     sampled: int = 0
     for source_ids, source_mask, target_ids, target_mask, src_str, target_str in tqdm(
         data_loader
@@ -135,8 +136,8 @@ def get_mean_activations(model: NNsight, data_loader: DataLoader, n: int) -> dic
             break
 
     for module, values in distribution.items():
-        new_v = torch.mean(torch.stack(values), dim=0)
-        new_v = torch.mean(new_v, dim=0)
+        stacked_activations = torch.cat(values, dim=0)
+        new_v = torch.mean(stacked_activations, dim=0)
         distribution.update({module: new_v.tolist()})
 
     return distribution
