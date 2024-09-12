@@ -2,7 +2,6 @@
 Modules to find subnetworks via model activation pruning
 """
 
-import json
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Literal
@@ -58,16 +57,13 @@ class ActivationPruner(Pruner):
         """
         self.freeze_initial_model()
         if self.mean_ablate:
-            try:
-                with open(
-                    MEAN_ABLATION_VALUES_PATH
-                    / f"{self.subtask.lower()}_mean_ablation_values.json"
-                ) as mean_ablation_values_files:
-                    ablation_data = json.load(mean_ablation_values_files)
-            except IOError:
-                raise IOError(
-                    f"Failed to read mean ablation values from {MEAN_ABLATION_VALUES_PATH}"
-                )
+            from comp_rep.utils import load_json  # Prevent circular import
+
+            full_path = (
+                MEAN_ABLATION_VALUES_PATH
+                / f"{self.subtask.lower()}_mean_ablation_values.json"
+            )
+            ablation_data = load_json(full_path)
 
         def replace_activation_layer(module: nn.Module, parent_name: str) -> None:
             for name, child in module.named_children():

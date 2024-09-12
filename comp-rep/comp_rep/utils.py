@@ -132,9 +132,29 @@ def load_tokenizer(path: Path) -> Dict:
     Returns:
         Dict: The tokenizer.
     """
-    with open(path / "tokenizers.json", "r") as f:
-        tokenizers = json.load(f, object_hook=keystoint)
-    return tokenizers
+    tokenizer_path = path / "tokenizers.json"
+    return load_json(tokenizer_path, object_hook=keystoint)
+
+
+def load_json(path: Path, object_hook=None) -> Dict:
+    """
+    Loads a JSON file from disk and returns it as a python dict object.
+
+    Args:
+        path (Path): The path to the json file.
+
+    Raises:
+        IOError
+
+    Returns
+        Dict: The serialized python dict.
+    """
+    try:
+        with open(path, "r") as f:
+            data = json.load(f, object_hook=object_hook)
+    except IOError:
+        raise IOError(f"Failed to read JSON file from disk at path: {path}")
+    return data
 
 
 def setup_logging(verbosity: int = 1) -> None:
