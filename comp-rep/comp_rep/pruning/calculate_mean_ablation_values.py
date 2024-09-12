@@ -1,17 +1,20 @@
 import argparse
 import json
+import logging
 import os
 from collections import defaultdict
 from pathlib import Path
+from typing import Dict, List
 
 import torch
 from nnsight import NNsight
+from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from comp_rep.constants import MASK_TASKS
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
-from comp_rep.utils import load_model, load_tokenizer, set_seed
+from comp_rep.utils import load_model, load_tokenizer, set_seed, setup_logging
 
 CURR_FILE_PATH = Path(__file__).resolve()
 DATA_DIR = CURR_FILE_PATH.parents[3] / "data" / "function_tasks"
@@ -54,7 +57,7 @@ def parse_args() -> argparse.Namespace:
         default=1000,
         help="The number of samples in the distribution you want to mean ablate from",
     )
-    parser.add_argument("--batch_size", type=int, default=8, help="Batch size")
+    parser.add_argument("--batch_size", type=int, default=64, help="Batch size")
     parser.add_argument("--seed", type=int, default=42, help="Seed")
     parser.add_argument(
         "--run_all", action="store_true", help="Run all the functional masks"
@@ -63,8 +66,19 @@ def parse_args() -> argparse.Namespace:
 
 
 def get_mean_activations(model: NNsight, data_loader: DataLoader, n: int) -> dict:
-    distribution = defaultdict(list)
-    sampled = 0
+    """
+    Calculate the mean activations of a given model's layers.
+
+    Args:
+        model (NNsight): The model for which to calculate the mean activations.
+        data_loader (DataLoader): The data loader used to load the data for the model.
+        n (int): The number of samples to use for the calculation.
+
+    Returns:
+        dict: A dictionary where the keys are the names of the model's layers and the values are the mean activations of those layers.
+    """
+    distribution: Dict[str, List[Tensor]] = defaultdict(list)
+    sampled: int = 0
     for source_ids, source_mask, target_ids, target_mask, src_str, target_str in tqdm(
         data_loader
     ):
@@ -95,29 +109,35 @@ def get_mean_activations(model: NNsight, data_loader: DataLoader, n: int) -> dic
             ) as _:
                 d_sa_output = model.decoder.layers[i].self_attention.nns_output.save()
 
-            distribution[f"model.encoder.layers[{i}].feed_forward"].append(
-                torch.mean(e_ff_output, dim=1)
+            distribution[f"model.encoder.layers.{i}.feed_forward"].append(
+                torch.mean(e_ff_output, dim=1).detach().cpu().clone()
             )
-            distribution[f"model.encoder.layers[{i}].self_attention"].append(
-                torch.mean(e_sa_output, dim=1)
+            distribution[f"model.encoder.layers.{i}.self_attention"].append(
+                torch.mean(e_sa_output, dim=1).detach().cpu().clone()
             )
-            distribution[f"model.decoder.layers[{i}].self_attention"].append(
-                torch.mean(d_sa_output, dim=1)
+            distribution[f"model.decoder.layers.{i}.self_attention"].append(
+                torch.mean(d_sa_output, dim=1).detach().cpu().clone()
             )
-            distribution[f"model.decoder.layers[{i}].cross_attention"].append(
-                torch.mean(d_ca_output, dim=1)
+            distribution[f"model.decoder.layers.{i}.cross_attention"].append(
+                torch.mean(d_ca_output, dim=1).detach().cpu().clone()
             )
-            distribution[f"model.decoder.layers[{i}].feed_forward"].append(
-                torch.mean(d_ff_output, dim=1)
+            distribution[f"model.decoder.layers.{i}.feed_forward"].append(
+                torch.mean(d_ff_output, dim=1).detach().cpu().clone()
             )
 
-        sampled += data_loader.batch_size
+        if data_loader.batch_size is not None:
+            sampled += data_loader.batch_size
+        else:
+            logging.warning(
+                f"Data loader's batch_size is: {data_loader.batch_size}. Sampled will remain 0."
+            )
+
         if sampled > n:
             break
 
     for module, values in distribution.items():
-        new_v = torch.mean(torch.stack(values), dim=0)
-        new_v = torch.mean(new_v, dim=0)
+        stacked_activations = torch.cat(values, dim=0)
+        new_v = torch.mean(stacked_activations, dim=0)
         distribution.update({module: new_v.tolist()})
 
     return distribution
@@ -126,6 +146,8 @@ def get_mean_activations(model: NNsight, data_loader: DataLoader, n: int) -> dic
 def main() -> None:
     args = parse_args()
     set_seed(args.seed)
+    setup_logging(args.verbose)
+
     if args.run_all:
         tasks_to_run = MASK_TASKS
     else:
@@ -142,7 +164,7 @@ def main() -> None:
         os.makedirs(SAVE_DIR)
 
     for task in tasks_to_run:
-        print(f"Calculating mean activation values for task: {task}")
+        logging.info(f"Calculating mean activation values for task: {task}")
         train_dataset = SequenceDataset(
             DATA_DIR / task / "train.csv", tokenizer=tokenizer
         )
