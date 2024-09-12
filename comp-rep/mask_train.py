@@ -11,11 +11,11 @@ from typing import Any, Dict
 
 import lightning as L
 import torch
+import wandb
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
-import wandb
 from comp_rep.callbacks.eval_callbacks import TestGenerationCallback
 from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
@@ -134,6 +134,11 @@ def parse_args() -> argparse.Namespace:
     # Train parameter configs
     parser.add_argument("--epochs", type=int, default=20, help="Number of epochs.")
     parser.add_argument(
+        "--mean_ablate",
+        action="store_true",
+        help="Whether or not to use mean ablated values loaded from disk",
+    )
+    parser.add_argument(
         "--train_batch_size", type=int, default=64, help="Training batch size."
     )
     parser.add_argument(
@@ -185,6 +190,8 @@ def get_pruner_kwargs(args: argparse.Namespace) -> Dict:
 
     pruner_kwargs = {
         "pruning_method": args.pruning_method,
+        "mean_ablate": args.mean_ablate,
+        "subtask": args.subtask,
         "maskedlayer_kwargs": pruning_methods_kwargs,
     }
 
