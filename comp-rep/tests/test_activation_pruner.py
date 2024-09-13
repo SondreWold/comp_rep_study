@@ -2,7 +2,6 @@ from pathlib import Path
 
 import pytest
 import torch
-from torch import nn
 
 from comp_rep.models.model import Transformer
 from comp_rep.pruning.activation_pruning.activation_pruner import ActivationPruner
@@ -25,7 +24,7 @@ def test_mean_ablation_loading(modelA):
     pruner = ActivationPruner(
         modelA,
         pruning_method="continuous",
-        mean_ablate=True,
+        ablation_value="mean",
         subtask="copy",
         maskedlayer_kwargs={},
     )
@@ -40,7 +39,7 @@ def test_zero_ablation_loading(modelA):
     pruner = ActivationPruner(
         modelA,
         pruning_method="continuous",
-        mean_ablate=False,
+        ablation_value="zero",
         subtask="copy",
         maskedlayer_kwargs={},
     )
