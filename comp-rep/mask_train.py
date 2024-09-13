@@ -229,20 +229,24 @@ def main() -> None:
 
     train_tokenizer = load_tokenizer(base_model_dir)
     train_dataset = SequenceDataset(
-        path=data_dir / args.subtask / "train.csv", tokenizer=train_tokenizer
+        path=data_dir / args.subtask / "train.csv",
+        tokenizer=train_tokenizer,
+        subtask=args.subtask,
     )
     input_vocabulary_size = len(train_tokenizer["input_language"]["index2word"])
     output_vocabulary_size = len(train_tokenizer["output_language"]["index2word"])
     args.input_vocabulary_size = input_vocabulary_size
     args.output_vocabulary_size = output_vocabulary_size
     val_dataset = SequenceDataset(
-        path=data_dir / args.subtask / "test.csv", tokenizer=train_tokenizer
+        path=data_dir / args.subtask / "test.csv",
+        tokenizer=train_tokenizer,
+        subtask=args.subtask,
     )
 
     train_loader = DataLoader(
         train_dataset,
         batch_size=args.train_batch_size,
-        collate_fn=CollateFunctor(),
+        collate_fn=CollateFunctor(probability_mode=True),
         shuffle=True,
         num_workers=7,
         persistent_workers=True,
@@ -250,7 +254,7 @@ def main() -> None:
     val_loader = DataLoader(
         val_dataset,
         batch_size=args.val_batch_size,
-        collate_fn=CollateFunctor(),
+        collate_fn=CollateFunctor(probability_mode=True),
         shuffle=False,
         num_workers=7,
         persistent_workers=True,
