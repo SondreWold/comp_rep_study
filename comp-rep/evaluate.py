@@ -78,6 +78,13 @@ def parse_args() -> argparse.Namespace:
         default="continuous",
         help="Pruning method.",
     )
+    parser.add_argument(
+        "--ablation_value",
+        type=str,
+        choices=["zero", "mean"],
+        default="zero",
+        help="Which value to ablate with",
+    )
 
     # Eval Configs
     parser.add_argument(
@@ -121,9 +128,14 @@ def main() -> None:
     # load model
     if args.is_masked:
         model_dir = args.save_path / args.pruning_task
-        model_file = f"{args.pruning_type}_{args.pruning_method}_pruned_model.ckpt"
+        model_file = f"{args.pruning_type}_{args.pruning_method}_{args.ablation_value}_pruned_model.ckpt"
         model_path = model_dir / model_file
-        prediction_path = RESULT_DIR / args.pruning_task
+        prediction_path = (
+            RESULT_DIR
+            / args.pruning_task
+            / f"{args.pruning_type}_{args.pruning_method}"
+            / {args.ablation_value}
+        )
     else:
         model_dir = args.save_path / args.base_model_name
         model_file = "base_model.ckpt"
