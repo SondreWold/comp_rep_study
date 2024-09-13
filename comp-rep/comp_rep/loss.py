@@ -46,7 +46,11 @@ def get_regularized_logits_loss(
     Returns:
         tuple: A tuple containing logits, cross entropy loss, mask loss, and total loss.
     """
-    logits, cross_entropy_loss = get_logits_loss(pl_module, batch)
+    _, _, _, _, target_probabilities, _, _ = batch
+    logits = pl_module(batch)
+    cross_entropy_loss = F.cross_entropy(
+        logits.transpose(-2, -1), target_probabilities[:, 1:, :].transpose(-2, -1)
+    )
     norms = pl_module.pruner.compute_l1_norm()
     mask_loss = mask_lambda * norms
     loss = cross_entropy_loss + mask_loss

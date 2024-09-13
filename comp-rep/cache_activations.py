@@ -59,7 +59,6 @@ def parse_args() -> argparse.Namespace:
 @torch.no_grad()
 def run_caching(model: nn.Module, loader: DataLoader, cache_save_path: Path):
     dataset_probabilities = []
-    i = 0
     for (
         source_ids,
         source_mask,
@@ -68,7 +67,6 @@ def run_caching(model: nn.Module, loader: DataLoader, cache_save_path: Path):
         source_str,
         target_str,
     ) in tqdm(loader):
-        i += 1
         source_ids = source_ids.to(DEVICE)
         source_mask = source_mask.to(DEVICE)
         target_ids = target_ids.to(DEVICE)
@@ -78,8 +76,6 @@ def run_caching(model: nn.Module, loader: DataLoader, cache_save_path: Path):
         ).squeeze()  # [seq_len, vocab_size]
         probas = nn.functional.softmax(logits, dim=-1)
         dataset_probabilities.append(probas)
-        if i > 100:
-            break
 
     dataset_probabilities = torch.stack(dataset_probabilities, dim=0)
     torch.save(dataset_probabilities, cache_save_path)
@@ -89,7 +85,7 @@ def run_caching(model: nn.Module, loader: DataLoader, cache_save_path: Path):
 def get_longest_item_of_dataset(dataset: SequenceDataset) -> int:
     max_seen_length = 0
     for idx in range(0, len(dataset)):
-        _, target_tensor, _, _ = dataset[idx]
+        _, target_tensor, _, _ = dataset[idx]  # type: ignore
         current_length = len(target_tensor)
         max_seen_length = max(max_seen_length, current_length)
     return max_seen_length
@@ -125,7 +121,7 @@ def main() -> None:
     loader = DataLoader(
         dataset,
         batch_size=1,
-        collate_fn=CollateFunctor(max_length=longest_sequence),
+        collate_fn=CollateFunctor(probability_mode=False, max_length=longest_sequence),
         shuffle=False,
         num_workers=7,
         persistent_workers=True,

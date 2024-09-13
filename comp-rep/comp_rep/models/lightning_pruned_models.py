@@ -7,10 +7,10 @@ from typing import Any, Dict, Literal
 
 import lightning as L
 import torch.optim as optim
+import wandb
 from torch import nn
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
-import wandb
 from comp_rep.loss import get_regularized_logits_loss
 from comp_rep.pruning.activation_pruning.activation_pruner import ActivationPruner
 from comp_rep.pruning.pruner import Pruner
@@ -70,7 +70,9 @@ class LitPrunedModel(L.LightningModule):
         Returns:
             torch.Tensor: The logits of the model.
         """
-        source_ids, source_mask, target_ids, target_mask, _, _ = batch
+        source_ids, source_mask, target_ids, target_mask, target_probabilities, _, _ = (
+            batch
+        )
         # Left shift the targets so that the last token predicts the EOS
         logits = self.model(
             source_ids, source_mask, target_ids[:, :-1], target_mask[:, :-1]

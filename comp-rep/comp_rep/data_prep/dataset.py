@@ -14,7 +14,11 @@ CACHE_DIR = DATA_DIR / "cached_logits"
 
 Pairs = list[tuple[str, str]]
 DatasetItem = tuple[torch.Tensor, torch.Tensor, str, str]
+DatasetItemWithProbabilities = tuple[torch.Tensor, torch.Tensor, torch.Tensor, str, str]
 CollatedItem = tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, str, str]
+CollatedItemWithProbabilities = tuple[
+    torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, str, str
+]
 PAD_TOKEN = 0
 SOS_TOKEN = 1
 EOS_TOKEN = 2
@@ -109,34 +113,65 @@ class SequenceDataset(Dataset):
     def indexesFromSentence(self, lang: Lang, sentence: str) -> list[int]:
         return [lang.word2index[word] for word in sentence.split(" ")]
 
-    def __getitem__(self, idx) -> DatasetItem:
+    def __getitem__(self, idx) -> DatasetItem | DatasetItemWithProbabilities:
         x, y = self.pairs[idx]
         input_tensor = torch.tensor(
             self.indexesFromSentence(self.input_language, x) + [EOS_TOKEN]
         )
         output_tokens = self.indexesFromSentence(self.output_language, y)
         output_tokens = [SOS_TOKEN] + output_tokens + [EOS_TOKEN]
+        output_tensor = torch.tensor(output_tokens)
         if self.subtask:
-            output_tensor = self.cached_probabilities[idx, 0 : len(output_tokens), :]
-            print(
-                f"Getting dataset index {idx}, sequence length: {len(output_tokens)}, shape of fetched probabilities: {output_tensor.shape}"
-            )
-            output_tensor = output_tensor.clone().detach()
+            output_probabilities = self.cached_probabilities[idx]
+            output_probabilities = output_probabilities.clone().detach()
+            return input_tensor, output_tensor, output_probabilities, x, y
         else:
-            output_tensor = torch.tensor(output_tokens)
-        return input_tensor, output_tensor, x, y
+            return input_tensor, output_tensor, x, y
 
 
 class CollateFunctor:
-    def __init__(self, max_length: Optional[int] = None) -> None:
+    def __init__(
+        self, probability_mode: bool = False, max_length: Optional[int] = None
+    ) -> None:
         self.pad_id = PAD_TOKEN
         self.max_length = max_length
+        self.probability_mode = probability_mode
 
-    def __call__(self, sentences: list) -> CollatedItem:
-        source_ids, target_ids, source_str, target_str = zip(*sentences)
-        source_ids, source_mask = self.collate_sentences(source_ids)
-        target_ids, target_mask = self.collate_sentences(target_ids)
-        return source_ids, source_mask, target_ids, target_mask, source_str, target_str
+    def __call__(self, sentences: list) -> CollatedItem | CollatedItemWithProbabilities:
+        if self.probability_mode:
+            (
+                raw_source_ids,
+                raw_target_ids,
+                output_probabilities,
+                source_str,
+                target_str,
+            ) = zip(*sentences)
+            source_ids, source_mask = self.collate_sentences(raw_source_ids)
+            target_ids, target_mask = self.collate_sentences(raw_target_ids)
+            truncated_output_probabilities = torch.stack(
+                [sample[0 : target_ids.shape[-1]] for sample in output_probabilities]
+            )
+            return (
+                source_ids,
+                source_mask,
+                target_ids,
+                target_mask,
+                truncated_output_probabilities,
+                source_str,
+                target_str,
+            )
+        else:
+            raw_source_ids, raw_target_ids, source_str, target_str = zip(*sentences)
+            source_ids, source_mask = self.collate_sentences(raw_source_ids)
+            target_ids, target_mask = self.collate_sentences(raw_target_ids)
+            return (
+                source_ids,
+                source_mask,
+                target_ids,
+                target_mask,
+                source_str,
+                target_str,
+            )
 
     def collate_sentences(self, sentences: list) -> tuple[torch.Tensor, torch.Tensor]:
         lengths = [sentence.size(0) for sentence in sentences]
