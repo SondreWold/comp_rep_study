@@ -30,12 +30,12 @@ class ActivationPruner(Pruner):
         self,
         model: nn.Module,
         pruning_method: Literal["continuous", "sampled"],
-        mean_ablate: bool,
+        ablation_value: Literal["zero", "mean"],
         subtask: str,
         maskedlayer_kwargs: dict[str, Any],
     ):
 
-        self.mean_ablate = mean_ablate
+        self.ablation_value = ablation_value
         self.subtask = subtask
         super(ActivationPruner, self).__init__(
             model=model,
@@ -56,7 +56,7 @@ class ActivationPruner(Pruner):
             maskedlayer_kwargs (dict[str, Any]): Additional keyword-arguments for the masked layer.
         """
         self.freeze_initial_model()
-        if self.mean_ablate:
+        if self.ablation_value == "mean":
             from comp_rep.utils import load_json  # Prevent circular import
 
             full_path = (
@@ -71,7 +71,7 @@ class ActivationPruner(Pruner):
                 if any(
                     isinstance(child, pruning_node) for pruning_node in PRUNED_NODES
                 ):
-                    if self.mean_ablate:
+                    if self.ablation_value == "mean":
                         try:
                             ablation_value = torch.tensor(ablation_data[parents])
                         except KeyError:
@@ -169,13 +169,13 @@ if __name__ == "__main__":
     model = SimpleModel()
     pruning_method: Literal["continuous"] = "continuous"
     subtask = "copy"
-    mean_ablate = False
+    ablation_value: Literal["zero", "mean"] = "zero"
     print(f"Toy model: \n{model}")
 
     cont_masked_model = ActivationPruner(
         model,
         pruning_method,
-        mean_ablate,
+        ablation_value,
         subtask,
         maskedlayer_kwargs=cont_maskedlayer_kwargs,
     )
