@@ -157,6 +157,26 @@ def load_json(path: Path, object_hook=None) -> Dict:
     return data
 
 
+def load_tensor(path: Path) -> torch.Tensor:
+    """
+    Loads a torch.Tensor from the provided path
+
+    Args:
+        path (Path): The path to the tensor file.
+
+    Raises:
+        IOError
+
+    Returns:
+        torch.Tensor
+    """
+    try:
+        tensor = torch.load(path)
+    except IOError:
+        raise IOError(f"Failed to load tensor from path: {str(path)}")
+    return tensor
+
+
 def setup_logging(verbosity: int = 1) -> None:
     """
     Set up logging based on the verbosity level.

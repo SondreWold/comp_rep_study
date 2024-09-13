@@ -1,10 +1,16 @@
 import pathlib
 from collections import defaultdict
+from pathlib import Path
 from typing import Optional
 
 import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset
+
+CURR_FILE_PATH = Path(__file__).resolve()
+DATA_DIR = CURR_FILE_PATH.parents[3] / "data"
+CACHE_DIR = DATA_DIR / "cached_logits"
+
 
 Pairs = list[tuple[str, str]]
 DatasetItem = tuple[torch.Tensor, torch.Tensor, str, str]
@@ -46,7 +52,13 @@ class Lang:
 
 
 class SequenceDataset(Dataset):
-    def __init__(self, path: pathlib.Path, tokenizer: Optional[dict] = None) -> None:
+    def __init__(
+        self,
+        path: pathlib.Path,
+        tokenizer: Optional[dict] = None,
+        subtask: Optional[str] = None,
+    ) -> None:
+        self.subtask = subtask
         try:
             self.pairs = self.read_pairs(path)
         except IOError:
@@ -71,6 +83,12 @@ class SequenceDataset(Dataset):
                 self.input_language.add_sentence(ip)
                 self.output_language.add_sentence(op)
 
+        if self.subtask:
+            from comp_rep.utils import load_tensor
+
+            subtask_cached_probs_path = CACHE_DIR / f"{subtask}.pt"
+            self.cached_probabilities = load_tensor(subtask_cached_probs_path)
+
     def read_pairs(self, path: pathlib.Path) -> Pairs:
         try:
             lines = open(path, encoding="utf-8").read().strip().split("\n")
@@ -93,18 +111,26 @@ class SequenceDataset(Dataset):
 
     def __getitem__(self, idx) -> DatasetItem:
         x, y = self.pairs[idx]
-        input_tensor = self.indexesFromSentence(self.input_language, x) + [EOS_TOKEN]
-        output_tensor = (
-            [SOS_TOKEN]
-            + self.indexesFromSentence(self.output_language, y)
-            + [EOS_TOKEN]
+        input_tensor = torch.tensor(
+            self.indexesFromSentence(self.input_language, x) + [EOS_TOKEN]
         )
-        return torch.tensor(input_tensor), torch.tensor(output_tensor), x, y
+        output_tokens = self.indexesFromSentence(self.output_language, y)
+        output_tokens = [SOS_TOKEN] + output_tokens + [EOS_TOKEN]
+        if self.subtask:
+            output_tensor = self.cached_probabilities[idx, 0 : len(output_tokens), :]
+            print(
+                f"Getting dataset index {idx}, sequence length: {len(output_tokens)}, shape of fetched probabilities: {output_tensor.shape}"
+            )
+            output_tensor = output_tensor.clone().detach()
+        else:
+            output_tensor = torch.tensor(output_tokens)
+        return input_tensor, output_tensor, x, y
 
 
 class CollateFunctor:
-    def __init__(self) -> None:
+    def __init__(self, max_length: Optional[int] = None) -> None:
         self.pad_id = PAD_TOKEN
+        self.max_length = max_length
 
     def __call__(self, sentences: list) -> CollatedItem:
         source_ids, target_ids, source_str, target_str = zip(*sentences)
@@ -114,9 +140,13 @@ class CollateFunctor:
 
     def collate_sentences(self, sentences: list) -> tuple[torch.Tensor, torch.Tensor]:
         lengths = [sentence.size(0) for sentence in sentences]
-        max_length = max(lengths)
+        if self.max_length is not None:
+            max_length = self.max_length + 1
+        else:
+            max_length = max(lengths)
         if max_length == 1:  # Some samples are only one token
             max_length += 1
+
         subword_ids = torch.stack(
             [
                 F.pad(sentence, (0, max_length - length), value=self.pad_id)
