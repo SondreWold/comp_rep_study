@@ -105,31 +105,40 @@ def main() -> None:
     model_file = "base_model.ckpt"
     model_path = model_dir / model_file
     model = load_model(model_path=model_path, is_masked=False)
-    model.eval()
 
     tokenizer = load_tokenizer(model_dir)
 
     data_dir = DATA_DIR if args.subtask == "base_tasks" else DATA_DIR / "function_tasks"
-    data_path = data_dir / args.subtask / "train.csv"
-    dataset = SequenceDataset(data_path, tokenizer=tokenizer)
-    longest_sequence = get_longest_item_of_dataset(dataset)
-    input_vocabulary_size = len(tokenizer["input_language"]["index2word"])
-    output_vocabulary_size = len(tokenizer["output_language"]["index2word"])
-    args.input_vocabulary_size = input_vocabulary_size
-    args.output_vocabulary_size = output_vocabulary_size
-
-    loader = DataLoader(
-        dataset,
-        batch_size=1,
-        collate_fn=CollateFunctor(probability_mode=False, max_length=longest_sequence),
-        shuffle=False,
-        num_workers=7,
-        persistent_workers=True,
-    )
-
     os.makedirs(CACHE_DIR, exist_ok=True)
-    cache_save_path = CACHE_DIR / f"{args.subtask}.pt"
-    run_caching(model, loader, cache_save_path)
+    for set_type in ["train", "test"]:
+        logging.info(
+            f"Caching probabilities for subtask {args.subtask} and split: {set_type}"
+        )
+        data_path = data_dir / args.subtask / f"{set_type}.csv"
+        dataset = SequenceDataset(data_path, tokenizer=tokenizer)
+        longest_sequence = get_longest_item_of_dataset(dataset)
+        input_vocabulary_size = len(tokenizer["input_language"]["index2word"])
+        output_vocabulary_size = len(tokenizer["output_language"]["index2word"])
+        args.input_vocabulary_size = input_vocabulary_size
+        args.output_vocabulary_size = output_vocabulary_size
+
+        loader = DataLoader(
+            dataset,
+            batch_size=1,
+            collate_fn=CollateFunctor(
+                probability_mode=False, max_length=longest_sequence
+            ),
+            shuffle=False,
+            num_workers=7,
+            persistent_workers=True,
+        )
+
+        cache_save_path = CACHE_DIR / f"{args.subtask}_{set_type}.pt"
+        if set_type == "train":
+            model.train()
+        else:
+            model.eval()
+        run_caching(model, loader, cache_save_path)
 
 
 if __name__ == "__main__":

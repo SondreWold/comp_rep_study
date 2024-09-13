@@ -63,6 +63,12 @@ class SequenceDataset(Dataset):
         subtask: Optional[str] = None,
     ) -> None:
         self.subtask = subtask
+        if "train" in path.name:
+            self.split = "train"
+        elif "test" in path.name:
+            self.split = "test"
+        else:
+            print(f"Failed to interpret split time from data path: {str(path)}")
         try:
             self.pairs = self.read_pairs(path)
         except IOError:
@@ -90,7 +96,7 @@ class SequenceDataset(Dataset):
         if self.subtask:
             from comp_rep.utils import load_tensor
 
-            subtask_cached_probs_path = CACHE_DIR / f"{subtask}.pt"
+            subtask_cached_probs_path = CACHE_DIR / f"{subtask}_{self.split}.pt"
             self.cached_probabilities = load_tensor(subtask_cached_probs_path)
 
     def read_pairs(self, path: pathlib.Path) -> Pairs:
@@ -123,7 +129,7 @@ class SequenceDataset(Dataset):
         output_tensor = torch.tensor(output_tokens)
         if self.subtask:
             output_probabilities = self.cached_probabilities[idx]
-            output_probabilities = output_probabilities.clone().detach()
+            output_probabilities = output_probabilities.clone()
             return input_tensor, output_tensor, output_probabilities, x, y
         else:
             return input_tensor, output_tensor, x, y
