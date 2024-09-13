@@ -67,6 +67,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--pruning_method", type=str, default="continuous", help="Pruning method."
     )
+    parser.add_argument(
+        "--ablation_value",
+        type=str,
+        choices=["zero", "mean"],
+        default="zero",
+        help="Which value to ablate with",
+    )
     return parser.parse_args()
 
 
@@ -74,6 +81,7 @@ def run_mask_evaluation(
     save_path: Path,
     pruning_type: Literal["weights", "activations"],
     pruning_method: Literal["sampled", "continuous"],
+    ablation_value: Literal["zero", "mean"],
     tasks: list[str],
 ) -> dict:
     """
@@ -95,7 +103,9 @@ def run_mask_evaluation(
 
         # load masked model
         model_dir = save_path / mask_name
-        model_name = f"{pruning_type}_{pruning_method}_pruned_model"
+        model_name = (
+            f"{pruning_type}_{pruning_method}_{ablation_value}_pruned_model.ckpt"
+        )
         model_path = model_dir / model_name
 
         model = load_model(model_path=model_path, is_masked=True)
@@ -134,6 +144,7 @@ def main() -> None:
         save_path=args.save_path,
         pruning_type=args.pruning_type,
         pruning_method=args.pruning_method,
+        ablation_value=args.ablation_value,
         tasks=args.eval_tasks,
     )
     logging.info(result)
