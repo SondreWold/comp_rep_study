@@ -16,10 +16,6 @@ from comp_rep.utils import load_json, load_tokenizer, set_seed
 set_seed(42)
 SUBTASK = "copy"
 CURR_FILE_PATH = Path(__file__).resolve()
-MEAN_ABLATION_VALUES_PATH = (
-    CURR_FILE_PATH.parents[1]
-    / "comp_rep/pruning/mean_ablation_values/copy_mean_ablation_values.json"
-)
 TEST_DATA_PATH = CURR_FILE_PATH.parents[0] / "test_data"
 PAD_LENGTH = 15
 
