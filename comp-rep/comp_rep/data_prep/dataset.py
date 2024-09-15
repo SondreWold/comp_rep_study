@@ -155,7 +155,10 @@ class CollateFunctor:
             source_ids, source_mask = self.collate_sentences(raw_source_ids)
             target_ids, target_mask = self.collate_sentences(raw_target_ids)
             truncated_output_probabilities = torch.stack(
-                [sample[0 : target_ids.shape[-1]] for sample in output_probabilities]
+                [
+                    sample[0 : target_ids.shape[-1] - 1]
+                    for sample in output_probabilities
+                ]
             )
             return (
                 source_ids,
@@ -182,7 +185,7 @@ class CollateFunctor:
     def collate_sentences(self, sentences: list) -> tuple[torch.Tensor, torch.Tensor]:
         lengths = [sentence.size(0) for sentence in sentences]
         if self.max_length is not None:
-            max_length = self.max_length + 1
+            max_length = self.max_length
         else:
             max_length = max(lengths)
         if max_length == 1:  # Some samples are only one token
