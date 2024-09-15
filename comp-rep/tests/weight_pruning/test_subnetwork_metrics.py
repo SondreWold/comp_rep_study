@@ -9,22 +9,22 @@ import torch
 from torch import nn
 
 from comp_rep.pruning.masked_base import MaskedLayer
+from comp_rep.pruning.subnetwork_mask_metrics import (
+    intersection_over_minimum,
+    intersection_over_union,
+    intersection_remaining_mask_by_layer_and_module,
+    iom_by_layer_and_module,
+    iom_models,
+    iou_by_layer_and_module,
+    iou_models,
+    union_remaining_mask_by_layer_and_module,
+)
 from comp_rep.pruning.subnetwork_set_operations import complement_
 from comp_rep.pruning.weight_pruning.masked_weights_layernorm import (
     ContinuousMaskedWeightsLayerNorm,
 )
 from comp_rep.pruning.weight_pruning.masked_weights_linear import (
     ContinuousMaskedWeightsLinear,
-)
-from comp_rep.pruning.weight_pruning.subnetwork_weights_metrics import (
-    intersection_over_minimum,
-    intersection_over_union,
-    intersection_remaining_weights_by_layer_and_module,
-    iom_by_layer_and_module,
-    iom_models,
-    iou_by_layer_and_module,
-    iou_models,
-    union_remaining_weights_by_layer_and_module,
 )
 
 
@@ -282,7 +282,7 @@ def test_intersection_remaining_weights_by_layer_and_module(modelA, modelB):
     # check identity for all layers
     layer_idx = [0, 1, 2, 3]
     module_types = [MaskedLayer]
-    iou = intersection_remaining_weights_by_layer_and_module(
+    iou = intersection_remaining_mask_by_layer_and_module(
         [modelA],
         layer_idx=layer_idx,
         module_types=module_types,
@@ -293,7 +293,7 @@ def test_intersection_remaining_weights_by_layer_and_module(modelA, modelB):
     # check identity for some types
     layer_idx = [0, 1, 2, 3]
     module_types = [ContinuousMaskedWeightsLinear]
-    iou = intersection_remaining_weights_by_layer_and_module(
+    iou = intersection_remaining_mask_by_layer_and_module(
         [modelA], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
     assert iou == (4 / 8 + 2 / 4) / 2
@@ -301,14 +301,14 @@ def test_intersection_remaining_weights_by_layer_and_module(modelA, modelB):
     # check fraction
     layer_idx = [0]
     module_types = [ContinuousMaskedWeightsLinear]
-    iou = intersection_remaining_weights_by_layer_and_module(
+    iou = intersection_remaining_mask_by_layer_and_module(
         [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
     assert iou == 3 / 8
 
     layer_idx = [0, 1, 2, 3]
     module_types = [ContinuousMaskedWeightsLinear]
-    iou = intersection_remaining_weights_by_layer_and_module(
+    iou = intersection_remaining_mask_by_layer_and_module(
         [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
     assert iou == (3 / 8 + 1 / 4) / 2
@@ -316,7 +316,7 @@ def test_intersection_remaining_weights_by_layer_and_module(modelA, modelB):
     # check sum
     layer_idx = [0, 1, 2, 3]
     module_types = [ContinuousMaskedWeightsLinear]
-    iou = intersection_remaining_weights_by_layer_and_module(
+    iou = intersection_remaining_mask_by_layer_and_module(
         [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=False
     )
     assert iou == (3 + 1) / 2
@@ -384,7 +384,7 @@ def test_union_remaining_weights_by_layer_and_module(modelA, modelB):
     # check identity for all layers
     layer_idx = [0, 1, 2, 3]
     module_types = [MaskedLayer]
-    iou = union_remaining_weights_by_layer_and_module(
+    iou = union_remaining_mask_by_layer_and_module(
         [modelA],
         layer_idx=layer_idx,
         module_types=module_types,
@@ -395,7 +395,7 @@ def test_union_remaining_weights_by_layer_and_module(modelA, modelB):
     # check identity for some types
     layer_idx = [0, 1, 2, 3]
     module_types = [ContinuousMaskedWeightsLinear]
-    iou = union_remaining_weights_by_layer_and_module(
+    iou = union_remaining_mask_by_layer_and_module(
         [modelA], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
     assert iou == (4 / 8 + 2 / 4) / 2
@@ -403,14 +403,14 @@ def test_union_remaining_weights_by_layer_and_module(modelA, modelB):
     # check fraction
     layer_idx = [0]
     module_types = [ContinuousMaskedWeightsLinear]
-    iou = union_remaining_weights_by_layer_and_module(
+    iou = union_remaining_mask_by_layer_and_module(
         [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
     assert iou == 4 / 8
 
     layer_idx = [0, 1, 2, 3]
     module_types = [ContinuousMaskedWeightsLinear]
-    iou = union_remaining_weights_by_layer_and_module(
+    iou = union_remaining_mask_by_layer_and_module(
         [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=True
     )
     assert iou == (4 / 8 + 2 / 4) / 2
@@ -418,7 +418,7 @@ def test_union_remaining_weights_by_layer_and_module(modelA, modelB):
     # check sum
     layer_idx = [0, 1, 2, 3]
     module_types = [ContinuousMaskedWeightsLinear]
-    iou = union_remaining_weights_by_layer_and_module(
+    iou = union_remaining_mask_by_layer_and_module(
         [modelA, modelB], layer_idx=layer_idx, module_types=module_types, fraction=False
     )
     assert iou == (4 + 2) / 2
