@@ -1,23 +1,34 @@
+"""
+Cache base model output, i.e. probability distributions over vocabulary
+"""
+
 import argparse
 import logging
 import os
 from pathlib import Path
+from typing import List
 
 import torch
-from torch import nn
+from torch import Tensor, nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from comp_rep.constants import POSSIBLE_TASKS
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
-from comp_rep.utils import load_model, load_tokenizer, set_seed, setup_logging
+from comp_rep.utils import (
+    ValidateWandbPath,
+    load_model,
+    load_tokenizer,
+    set_seed,
+    setup_logging,
+)
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 CURR_FILE_PATH = Path(__file__).resolve()
 CURR_FILE_DIR = CURR_FILE_PATH.parent
 DATA_DIR = CURR_FILE_PATH.parents[1] / "data"
-CACHE_DIR = DATA_DIR / "cached_logits"
+CACHE_DIR = DATA_DIR / "cached_probabilities"
 
 
 def parse_args() -> argparse.Namespace:
@@ -47,6 +58,12 @@ def parse_args() -> argparse.Namespace:
         help="Path to load trained model from.",
     )
     parser.add_argument(
+        "--cache_dir",
+        action=ValidateWandbPath,
+        type=Path,
+        help="Path to save cached probabilities at.",
+    )
+    parser.add_argument(
         "--subtask",
         type=str,
         default="copy",
@@ -57,8 +74,19 @@ def parse_args() -> argparse.Namespace:
 
 
 @torch.no_grad()
-def run_caching(model: nn.Module, loader: DataLoader, cache_save_path: Path):
-    dataset_probabilities = []
+def run_caching(model: nn.Module, loader: DataLoader, cache_save_path: Path) -> None:
+    """
+    Runs caching for a given model on a provided data loader, storing the resulting probabilities at a specified cache save path.
+
+    Args:
+        model (nn.Module): The model to run caching for.
+        loader (DataLoader): The data loader to use for caching.
+        cache_save_path (Path): The path to save the cached probabilities at.
+
+    Returns:
+        None
+    """
+    dataset_probabilities: List[Tensor] = []
     for (
         source_ids,
         source_mask,
@@ -77,12 +105,21 @@ def run_caching(model: nn.Module, loader: DataLoader, cache_save_path: Path):
         probas = nn.functional.softmax(logits, dim=-1)
         dataset_probabilities.append(probas)
 
-    dataset_probabilities = torch.stack(dataset_probabilities, dim=0)
-    torch.save(dataset_probabilities, cache_save_path)
+    dataset_probabilities_tensor = torch.stack(dataset_probabilities, dim=0)
+    torch.save(dataset_probabilities_tensor, cache_save_path)
     logging.info("Finished writing cached probabilities to disk..")
 
 
 def get_longest_item_of_dataset(dataset: SequenceDataset) -> int:
+    """
+    Retrieves the length of the longest item in the given dataset.
+
+    Args:
+        dataset (SequenceDataset): The dataset to search for the longest item.
+
+    Returns:
+        int: The length of the longest item in the dataset.
+    """
     max_seen_length = 0
     for idx in range(0, len(dataset)):
         _, target_tensor, _, _ = dataset[idx]  # type: ignore
@@ -109,7 +146,6 @@ def main() -> None:
     tokenizer = load_tokenizer(model_dir)
 
     data_dir = DATA_DIR if args.subtask == "base_tasks" else DATA_DIR / "function_tasks"
-    os.makedirs(CACHE_DIR, exist_ok=True)
     for set_type in ["train", "test"]:
         logging.info(
             f"Caching probabilities for subtask {args.subtask} and split: {set_type}"
@@ -131,7 +167,10 @@ def main() -> None:
             persistent_workers=True,
         )
 
-        cache_save_path = CACHE_DIR / f"{args.subtask}_{set_type}.pt"
+        cache_dir = args.cache_dir / f"{args.subtask}"
+        os.makedirs(cache_dir, exist_ok=True)
+        cache_save_path = cache_dir / f"{args.subtask}_{set_type}.pt"
+
         if set_type == "train":
             model.train()
         else:
