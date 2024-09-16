@@ -23,12 +23,15 @@ def jensen_shannon_divergence_from_logits(
     Returns:
         float: The Jensen-Shannon Divergence between the two probability distributions.
     """
-    p_probs = F.softmax(p_logits, dim=-1) + eps
-    q_probs = q_probs + eps
+    p_probs = F.softmax(p_logits, dim=-1)
+    q_probs = q_probs
 
     # Normalize probabilities to ensure they sum to 1
     p_probs = p_probs / p_probs.sum(dim=-1, keepdim=True)
     q_probs = q_probs / q_probs.sum(dim=-1, keepdim=True)
+
+    p_probs = p_probs + eps
+    q_probs = q_probs + eps
 
     # compute average distribution M
     m = 0.5 * (p_probs + q_probs)
@@ -44,7 +47,7 @@ def jensen_shannon_divergence_from_logits(
     if len(jsd.shape) == 2:
         jsd = jsd.mean(dim=-1)
     jsd_batch_mean = jsd.mean(dim=-1)
-    jsd_normalized = jsd_batch_mean / math.log(p_probs.shape[-1])
+    jsd_normalized = jsd_batch_mean / math.log(2)
 
     return jsd_normalized.item()
 
