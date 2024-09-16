@@ -9,8 +9,6 @@ from torch.utils.data import Dataset
 
 CURR_FILE_PATH = Path(__file__).resolve()
 DATA_DIR = CURR_FILE_PATH.parents[3] / "data"
-CACHE_DIR = DATA_DIR / "cached_logits"
-
 
 Pairs = list[tuple[str, str]]
 DatasetItem = tuple[torch.Tensor, torch.Tensor, str, str]
@@ -73,16 +71,9 @@ class SequenceDatasetWithProbabilities(Dataset):
     def __init__(
         self,
         path: pathlib.Path,
+        probabilities_path: Path,
         tokenizer: Optional[dict] = None,
-        subtask: Optional[str] = None,
     ) -> None:
-        self.subtask = subtask
-        if "train" in path.name:
-            self.split = "train"
-        elif "test" in path.name:
-            self.split = "test"
-        else:
-            print(f"Failed to interpret split time from data path: {str(path)}")
         try:
             self.pairs = read_pairs(path)
         except IOError:
@@ -109,8 +100,7 @@ class SequenceDatasetWithProbabilities(Dataset):
 
         from comp_rep.utils import load_tensor
 
-        subtask_cached_probs_path = CACHE_DIR / f"{subtask}_{self.split}.pt"
-        self.cached_probabilities = load_tensor(subtask_cached_probs_path)
+        self.cached_probabilities = load_tensor(probabilities_path)
 
     def __len__(self) -> int:
         return len(self.pairs)

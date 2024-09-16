@@ -40,6 +40,7 @@ DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 CURR_FILE_PATH = Path(__file__).resolve()
 CURR_FILE_DIR = CURR_FILE_PATH.parent
 DATA_DIR = CURR_FILE_PATH.parents[1] / "data"
+CACHE_DIR = DATA_DIR / "cached_logits"
 SWEEP_DIR = CURR_FILE_DIR / "sweeps"
 RESULT_DIR = CURR_FILE_DIR / "predictions"
 
@@ -234,18 +235,21 @@ def main() -> None:
         name=f"{args.ablation_value}_{args.pruning_type}_{args.pruning_method}_{args.subtask}_{formatted_datetime}",
         config=config,
         save_dir=args.wandb_path,
-        mode="disabled",
     )
 
     # load data
     data_dir = DATA_DIR / "function_tasks" if args.subtask != "base_tasks" else DATA_DIR
     base_model_dir = args.save_path / args.base_model_name
 
+    # Cached probabilities
+    train_probabilities = CACHE_DIR / f"{args.subtask}_train.pt"
+    val_probabilities = CACHE_DIR / f"{args.subtask}_test.pt"
+
     train_tokenizer = load_tokenizer(base_model_dir)
     train_dataset = SequenceDatasetWithProbabilities(
         path=data_dir / args.subtask / "train.csv",
+        probabilities_path=train_probabilities,
         tokenizer=train_tokenizer,
-        subtask=args.subtask,
     )
     input_vocabulary_size = len(train_tokenizer["input_language"]["index2word"])
     output_vocabulary_size = len(train_tokenizer["output_language"]["index2word"])
@@ -253,8 +257,8 @@ def main() -> None:
     args.output_vocabulary_size = output_vocabulary_size
     val_dataset = SequenceDatasetWithProbabilities(
         path=data_dir / args.subtask / "test.csv",
+        probabilities_path=val_probabilities,
         tokenizer=train_tokenizer,
-        subtask=args.subtask,
     )
 
     train_loader = DataLoader(
@@ -331,7 +335,6 @@ def main() -> None:
         gradient_clip_algorithm=args.gradient_clip_alg,
         max_epochs=args.epochs,
         logger=wandb_logger,
-        accelerator="cpu",
     )
     trainer.fit(pl_pruned_model, train_loader, val_loader)
     save_tokenizer(pruned_model_dir, train_tokenizer)

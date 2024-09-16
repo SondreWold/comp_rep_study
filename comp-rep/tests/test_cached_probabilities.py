@@ -50,10 +50,10 @@ def test_save_and_load_cache(modelA):
     raw_probas = torch.load(cache_save_path)
 
     # Load testset with the cached probabilities
+
     dataset_with_probabilities = SequenceDatasetWithProbabilities(
-        dataset_path, tokenizer, SUBTASK
+        dataset_path, cache_save_path, tokenizer
     )
-    dataset_with_probabilities.cached_probabilities = raw_probas  # Need to set our local test data as the cached probas, as the Dataset loads these from a fixed path.
     loader = DataLoader(
         dataset_with_probabilities,
         batch_size=2,
