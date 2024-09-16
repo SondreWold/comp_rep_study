@@ -76,7 +76,7 @@ class TestFaithfulnessCallback(Callback):
         """
         epoch = trainer.current_epoch
 
-        if epoch > 0 and epoch % self.frequency == 0:
+        if epoch % self.frequency == 0:
             avg_faithfulness = evaluate_task_faithfulness(
                 model=pl_module.model,
                 test_loader=self.test_loader,
