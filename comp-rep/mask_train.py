@@ -11,14 +11,17 @@ from typing import Any, Dict
 
 import lightning as L
 import torch
+import wandb
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
-import wandb
 from comp_rep.callbacks.eval_callbacks import TestGenerationCallback
 from comp_rep.constants import POSSIBLE_TASKS
-from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
+from comp_rep.data_prep.dataset import (
+    CollateFunctorWithProbabilities,
+    SequenceDatasetWithProbabilities,
+)
 from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.evaluator import evaluate_generation
 from comp_rep.models.lightning_models import LitTransformer
@@ -37,6 +40,7 @@ DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 CURR_FILE_PATH = Path(__file__).resolve()
 CURR_FILE_DIR = CURR_FILE_PATH.parent
 DATA_DIR = CURR_FILE_PATH.parents[1] / "data"
+CACHE_DIR = DATA_DIR / "cached_logits"
 SWEEP_DIR = CURR_FILE_DIR / "sweeps"
 RESULT_DIR = CURR_FILE_DIR / "predictions"
 
@@ -237,22 +241,30 @@ def main() -> None:
     data_dir = DATA_DIR / "function_tasks" if args.subtask != "base_tasks" else DATA_DIR
     base_model_dir = args.save_path / args.base_model_name
 
+    # Cached probabilities
+    train_probabilities = CACHE_DIR / f"{args.subtask}_train.pt"
+    val_probabilities = CACHE_DIR / f"{args.subtask}_test.pt"
+
     train_tokenizer = load_tokenizer(base_model_dir)
-    train_dataset = SequenceDataset(
-        path=data_dir / args.subtask / "train.csv", tokenizer=train_tokenizer
+    train_dataset = SequenceDatasetWithProbabilities(
+        path=data_dir / args.subtask / "train.csv",
+        probabilities_path=train_probabilities,
+        tokenizer=train_tokenizer,
     )
     input_vocabulary_size = len(train_tokenizer["input_language"]["index2word"])
     output_vocabulary_size = len(train_tokenizer["output_language"]["index2word"])
     args.input_vocabulary_size = input_vocabulary_size
     args.output_vocabulary_size = output_vocabulary_size
-    val_dataset = SequenceDataset(
-        path=data_dir / args.subtask / "test.csv", tokenizer=train_tokenizer
+    val_dataset = SequenceDatasetWithProbabilities(
+        path=data_dir / args.subtask / "test.csv",
+        probabilities_path=val_probabilities,
+        tokenizer=train_tokenizer,
     )
 
     train_loader = DataLoader(
         train_dataset,
         batch_size=args.train_batch_size,
-        collate_fn=CollateFunctor(),
+        collate_fn=CollateFunctorWithProbabilities(),
         shuffle=True,
         num_workers=7,
         persistent_workers=True,
@@ -260,7 +272,7 @@ def main() -> None:
     val_loader = DataLoader(
         val_dataset,
         batch_size=args.val_batch_size,
-        collate_fn=CollateFunctor(),
+        collate_fn=CollateFunctorWithProbabilities(),
         shuffle=False,
         num_workers=7,
         persistent_workers=True,
