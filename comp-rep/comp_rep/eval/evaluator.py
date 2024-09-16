@@ -15,6 +15,7 @@ from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
 from comp_rep.eval.decoding import GreedySearch
 
 
+@torch.no_grad
 def evaluate_generation(
     model: nn.Module,
     searcher: GreedySearch,
@@ -41,28 +42,23 @@ def evaluate_generation(
     predictions_l = []
     outs = []
     model.to(device)
-    with torch.no_grad():
-        for (
-            source_ids,
-            source_mask,
-            _,
-            _,
-            _,
-            target_str,
-        ) in tqdm(test_loader):
-            source_ids = source_ids.to(device)
-            source_mask = source_mask.to(device)
-            sentences, _ = searcher(source_ids, source_mask)
-            for t, p in zip(target_str, sentences):
-                t = t.strip()
-                p = p.strip()
-                c = t == p
-                if c:
-                    corrects += 1
-                n += 1
-                targets_l.append(t)
-                predictions_l.append(p)
-                outs.append(t + "," + p + "," + str(c))
+    for batch in tqdm(test_loader):
+        source_ids = batch[0].to(
+            device
+        )  # With indexing we do not have to do a type check on the dataset type
+        source_mask = batch[1].to(device)
+        target_str = batch[-1]
+        sentences, _ = searcher(source_ids, source_mask)
+        for t, p in zip(target_str, sentences):
+            t = t.strip()
+            p = p.strip()
+            c = t == p
+            if c:
+                corrects += 1
+            n += 1
+            targets_l.append(t)
+            predictions_l.append(p)
+            outs.append(t + "," + p + "," + str(c))
 
     if predictions_path is not None:
         try:

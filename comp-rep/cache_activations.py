@@ -125,9 +125,7 @@ def main() -> None:
         loader = DataLoader(
             dataset,
             batch_size=1,
-            collate_fn=CollateFunctor(
-                probability_mode=False, max_length=longest_sequence
-            ),
+            collate_fn=CollateFunctor(max_length=longest_sequence),
             shuffle=False,
             num_workers=7,
             persistent_workers=True,

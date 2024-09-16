@@ -7,7 +7,12 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from cache_activations import run_caching
-from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
+from comp_rep.data_prep.dataset import (
+    CollateFunctor,
+    CollateFunctorWithProbabilities,
+    SequenceDataset,
+    SequenceDatasetWithProbabilities,
+)
 from comp_rep.models.lightning_pruned_models import LitPrunedModel
 from comp_rep.models.model import Transformer
 from comp_rep.pruning.activation_pruning.activation_pruner import ActivationPruner
@@ -25,23 +30,17 @@ def modelA() -> Transformer:
     return Transformer(523, 523, 2, 64, 0.2)
 
 
-def create_dataset(
-    path: Path, tokenizer: dict, subtask: Optional[str] = None
-) -> SequenceDataset:
-    return SequenceDataset(path, tokenizer, subtask)
-
-
 def test_save_and_load_cache(modelA):
     modelA.eval()
     tokenizer = load_tokenizer(TEST_DATA_PATH)
 
     # Cache probabilities for a small test set
     dataset_path = TEST_DATA_PATH / f"{SUBTASK}_train.csv"
-    dataset_to_cache = create_dataset(dataset_path, tokenizer)
+    dataset_to_cache = SequenceDataset(dataset_path, tokenizer)
     cache_loader = DataLoader(
         dataset_to_cache,
         batch_size=1,
-        collate_fn=CollateFunctor(probability_mode=False, max_length=PAD_LENGTH),
+        collate_fn=CollateFunctor(max_length=PAD_LENGTH),
         shuffle=False,
         num_workers=1,
         persistent_workers=True,
@@ -51,12 +50,14 @@ def test_save_and_load_cache(modelA):
     raw_probas = torch.load(cache_save_path)
 
     # Load testset with the cached probabilities
-    dataset_with_probabilities = SequenceDataset(dataset_path, tokenizer, SUBTASK)
+    dataset_with_probabilities = SequenceDatasetWithProbabilities(
+        dataset_path, tokenizer, SUBTASK
+    )
     dataset_with_probabilities.cached_probabilities = raw_probas  # Need to set our local test data as the cached probas, as the Dataset loads these from a fixed path.
     loader = DataLoader(
         dataset_with_probabilities,
         batch_size=2,
-        collate_fn=CollateFunctor(probability_mode=True),
+        collate_fn=CollateFunctorWithProbabilities(),
         shuffle=True,
         num_workers=1,
         persistent_workers=True,

@@ -11,14 +11,17 @@ from typing import Any, Dict
 
 import lightning as L
 import torch
+import wandb
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
-import wandb
 from comp_rep.callbacks.eval_callbacks import TestGenerationCallback
 from comp_rep.constants import POSSIBLE_TASKS
-from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
+from comp_rep.data_prep.dataset import (
+    CollateFunctorWithProbabilities,
+    SequenceDatasetWithProbabilities,
+)
 from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.evaluator import evaluate_generation
 from comp_rep.models.lightning_models import LitTransformer
@@ -231,6 +234,7 @@ def main() -> None:
         name=f"{args.ablation_value}_{args.pruning_type}_{args.pruning_method}_{args.subtask}_{formatted_datetime}",
         config=config,
         save_dir=args.wandb_path,
+        mode="disabled",
     )
 
     # load data
@@ -238,7 +242,7 @@ def main() -> None:
     base_model_dir = args.save_path / args.base_model_name
 
     train_tokenizer = load_tokenizer(base_model_dir)
-    train_dataset = SequenceDataset(
+    train_dataset = SequenceDatasetWithProbabilities(
         path=data_dir / args.subtask / "train.csv",
         tokenizer=train_tokenizer,
         subtask=args.subtask,
@@ -247,7 +251,7 @@ def main() -> None:
     output_vocabulary_size = len(train_tokenizer["output_language"]["index2word"])
     args.input_vocabulary_size = input_vocabulary_size
     args.output_vocabulary_size = output_vocabulary_size
-    val_dataset = SequenceDataset(
+    val_dataset = SequenceDatasetWithProbabilities(
         path=data_dir / args.subtask / "test.csv",
         tokenizer=train_tokenizer,
         subtask=args.subtask,
@@ -256,7 +260,7 @@ def main() -> None:
     train_loader = DataLoader(
         train_dataset,
         batch_size=args.train_batch_size,
-        collate_fn=CollateFunctor(probability_mode=True),
+        collate_fn=CollateFunctorWithProbabilities(),
         shuffle=True,
         num_workers=7,
         persistent_workers=True,
@@ -264,7 +268,7 @@ def main() -> None:
     val_loader = DataLoader(
         val_dataset,
         batch_size=args.val_batch_size,
-        collate_fn=CollateFunctor(probability_mode=True),
+        collate_fn=CollateFunctorWithProbabilities(),
         shuffle=False,
         num_workers=7,
         persistent_workers=True,
@@ -327,6 +331,7 @@ def main() -> None:
         gradient_clip_algorithm=args.gradient_clip_alg,
         max_epochs=args.epochs,
         logger=wandb_logger,
+        accelerator="cpu",
     )
     trainer.fit(pl_pruned_model, train_loader, val_loader)
     save_tokenizer(pruned_model_dir, train_tokenizer)
