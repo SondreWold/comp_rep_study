@@ -104,7 +104,6 @@ def run_caching(model: nn.Module, loader: DataLoader, cache_save_path: Path) -> 
         ).squeeze()  # [seq_len, vocab_size]
         probas = nn.functional.softmax(logits, dim=-1)
         dataset_probabilities.append(probas)
-        break
 
     dataset_probabilities_tensor = torch.stack(dataset_probabilities, dim=0)
     dataset_probabilities_tensor = dataset_probabilities_tensor.detach().cpu()
