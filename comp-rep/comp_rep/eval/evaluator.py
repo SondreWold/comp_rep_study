@@ -4,7 +4,7 @@ Modules to evaluate models.
 
 import logging
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -13,9 +13,10 @@ from tqdm import tqdm
 
 from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
 from comp_rep.eval.decoding import GreedySearch
+from comp_rep.eval.metrics import jsd_faithfulness
 
 
-@torch.no_grad
+@torch.no_grad()
 def evaluate_generation(
     model: nn.Module,
     searcher: GreedySearch,
@@ -71,6 +72,55 @@ def evaluate_generation(
             return corrects / n
 
     return corrects / n
+
+
+@torch.no_grad()
+def evaluate_task_faithfulness(
+    model: nn.Module,
+    test_loader: DataLoader,
+    device: Union[str, torch.device] = "cuda:0",
+) -> float:
+    """
+    Evaluates the faithfulness of a given model on a test dataset.
+
+    Args:
+        model (nn.Module): The model to be evaluated.
+        test_loader (DataLoader): The test dataset loader.
+        device (Union[str, torch.device], optional): The device to be used for evaluation. Defaults to "cuda:0".
+
+    Returns:
+        float: The average faithfulness score of the model over the test set.
+    """
+    model = model.to(device)
+    model.eval()
+
+    total_faithfulness_score: float = 0.0
+    n_batches: int = 0
+
+    for batch in tqdm(test_loader):
+        source_ids, source_mask, target_ids, target_mask, target_probabilities, _, _ = (
+            batch
+        )
+
+        # Move tensors to device
+        source_ids = source_ids.to(device)
+        source_mask = source_mask.to(device)
+        target_ids = target_ids.to(device)
+        target_mask = target_mask.to(device)
+        target_probabilities = target_probabilities.to(device)
+
+        # Left shift the targets so that the last token predicts the EOS
+        model_logits = model(
+            source_ids, source_mask, target_ids[:, :-1], target_mask[:, :-1]
+        )  # [batch size, max seq len, vocab]
+
+        faithfulness_score = jsd_faithfulness(
+            p_logits=model_logits, q_probs=target_probabilities, eps=1e-10
+        )
+        total_faithfulness_score += faithfulness_score
+        n_batches += 1
+
+    return total_faithfulness_score / n_batches
 
 
 def eval_task(

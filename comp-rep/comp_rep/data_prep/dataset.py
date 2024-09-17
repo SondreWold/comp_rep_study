@@ -100,7 +100,7 @@ class SequenceDatasetWithProbabilities(Dataset):
 
         from comp_rep.utils import load_tensor
 
-        self.cached_probabilities = load_tensor(probabilities_path)
+        self.cached_probabilities = load_tensor(probabilities_path).detach().cpu()
 
     def __len__(self) -> int:
         return len(self.pairs)
@@ -117,7 +117,6 @@ class SequenceDatasetWithProbabilities(Dataset):
         output_tokens = [SOS_TOKEN] + output_tokens + [EOS_TOKEN]
         output_tensor = torch.tensor(output_tokens)
         output_probabilities = self.cached_probabilities[idx]
-        output_probabilities = output_probabilities.clone()
         return input_tensor, output_tensor, output_probabilities, x, y
 
 

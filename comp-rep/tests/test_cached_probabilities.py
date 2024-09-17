@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from cache_activations import run_caching
+from cache_base_model_output import run_caching
 from comp_rep.data_prep.dataset import (
     CollateFunctor,
     CollateFunctorWithProbabilities,
@@ -23,6 +23,7 @@ SUBTASK = "copy"
 CURR_FILE_PATH = Path(__file__).resolve()
 TEST_DATA_PATH = CURR_FILE_PATH.parents[0] / "test_data"
 PAD_LENGTH = 15
+DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 
 @pytest.fixture
@@ -31,6 +32,7 @@ def modelA() -> Transformer:
 
 
 def test_save_and_load_cache(modelA):
+    modelA.to(DEVICE)
     modelA.eval()
     tokenizer = load_tokenizer(TEST_DATA_PATH)
 
@@ -47,10 +49,8 @@ def test_save_and_load_cache(modelA):
     )
     cache_save_path = TEST_DATA_PATH / f"{SUBTASK}_train.pt"
     run_caching(modelA, cache_loader, cache_save_path)
-    raw_probas = torch.load(cache_save_path)
 
     # Load testset with the cached probabilities
-
     dataset_with_probabilities = SequenceDatasetWithProbabilities(
         dataset_path, cache_save_path, tokenizer
     )
@@ -74,8 +74,13 @@ def test_save_and_load_cache(modelA):
         target_str,
     ) in enumerate(loader):
 
+        source_ids = source_ids.to(DEVICE)
+        source_mask = source_mask.to(DEVICE)
+        target_ids = target_ids.to(DEVICE)
+        target_mask = target_mask.to(DEVICE)
+
         logits = modelA(
             source_ids, source_mask, target_ids[:, :-1], target_mask[:, :-1]
         ).squeeze()  # [seq_len, vocab_size]
-        probas = nn.functional.softmax(logits, dim=-1)
+        probas = nn.functional.softmax(logits, dim=-1).detach().cpu()
         assert torch.all(torch.isclose(probas, target_probabilities))

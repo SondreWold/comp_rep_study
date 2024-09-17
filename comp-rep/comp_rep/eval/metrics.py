@@ -2,6 +2,8 @@
 Evaluation metrics
 """
 
+import math
+
 import torch
 import torch.nn.functional as F
 from torch import Tensor
@@ -11,7 +13,7 @@ def jensen_shannon_divergence_from_logits(
     p_logits: Tensor, q_probs: Tensor, eps: float = 1e-10
 ) -> float:
     """
-    Computes the Jensen-Shannon Divergence (JSD) between two probability distributions.
+    Computes the normalized Jensen-Shannon Divergence (JSD) between two probability distributions.
 
     Args:
         p_logits (Tensor): The logits of the first probability distribution.
@@ -21,21 +23,33 @@ def jensen_shannon_divergence_from_logits(
     Returns:
         float: The Jensen-Shannon Divergence between the two probability distributions.
     """
-    kl_loss = torch.nn.KLDivLoss(reduction="batchmean")
-
     p_probs = F.softmax(p_logits, dim=-1)
+    q_probs = q_probs
+
+    # Normalize probabilities to ensure they sum to 1
+    p_probs = p_probs / p_probs.sum(dim=-1, keepdim=True)
+    q_probs = q_probs / q_probs.sum(dim=-1, keepdim=True)
+
+    p_probs = p_probs + eps
+    q_probs = q_probs + eps
 
     # compute average distribution M
     m = 0.5 * (p_probs + q_probs)
 
-    # compute KL divergence between
-    kl_pm = kl_loss(torch.log(m + eps), p_probs)
-    kl_qm = kl_loss(torch.log(m + eps), q_probs)
+    # Compute KL divergences
+    kl_pm = torch.sum(p_probs * (torch.log(p_probs) - torch.log(m)), dim=-1)
+    kl_qm = torch.sum(q_probs * (torch.log(q_probs) - torch.log(m)), dim=-1)
 
     # Jensen-Shannon Divergence
-    jsd = 0.5 * (kl_pm + kl_qm)
+    jsd = 0.5 * (kl_pm + kl_qm)  # Shape: [batch_size, seq_len]
 
-    return jsd.item()
+    # Average over sequence and batch
+    if len(jsd.shape) == 2:
+        jsd = jsd.mean(dim=-1)
+    jsd_batch_mean = jsd.mean(dim=-1)
+    jsd_normalized = jsd_batch_mean / math.log(2)
+
+    return jsd_normalized.item()
 
 
 def jsd_faithfulness(p_logits: Tensor, q_probs: Tensor, eps: float = 1e-10) -> float:
