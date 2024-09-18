@@ -5,16 +5,17 @@ Evaluate masked models on the individual functions
 import argparse
 import json
 import logging
-from collections import defaultdict
 from pathlib import Path
-from typing import Literal
+from typing import Dict, List, Literal
 
 import torch
 
-from comp_rep.constants import POSSIBLE_TASKS
+from comp_rep.constants import MASK_TASKS
 from comp_rep.eval.evaluator import eval_task
 from comp_rep.utils import (
     ValidateTaskOptions,
+    ValidateWandbPath,
+    free_model,
     load_model,
     load_tokenizer,
     setup_logging,
@@ -24,7 +25,7 @@ DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 CURR_FILE_PATH = Path(__file__).resolve()
 CURR_FILE_DIR = CURR_FILE_PATH.parent
-DATA_DIR = CURR_FILE_PATH.parents[1] / "data/function_tasks"
+DATA_DIR = CURR_FILE_PATH.parents[2] / "data/function_tasks"
 
 
 def parse_args() -> argparse.Namespace:
@@ -49,14 +50,29 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--eval_tasks",
         nargs="+",
-        default=POSSIBLE_TASKS,
+        default=MASK_TASKS,
         action=ValidateTaskOptions,
         help="Task(s) to evaluate model on.",
     )
+    parser.add_argument(
+        "--cache_dir",
+        action=ValidateWandbPath,
+        type=Path,
+        help="Path to cached probabilities.",
+    )
+    parser.add_argument(
+        "--result_dir", type=Path, help="Path to where the results are saved."
+    )
 
     # Mask Configs
-    parser.add_argument("--save_path", type=Path, help="Path to the saved models.")
-    parser.add_argument("--result_dir", type=Path, help="Path to the saved models.")
+    parser.add_argument("--model_path", type=Path, help="Path to the saved models.")
+    parser.add_argument(
+        "--circuit_names",
+        nargs="+",
+        default=["append"],
+        action=ValidateTaskOptions,
+        help="Name of subtask on which model has been pruned on.",
+    )
     parser.add_argument(
         "--pruning_type",
         type=str,
@@ -77,56 +93,75 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def run_mask_evaluation(
-    save_path: Path,
+def run_circuit_performance_evaluation(
+    model_dir: Path,
+    cache_dir: Path,
     result_dir: Path,
     pruning_type: Literal["weights", "activations"],
     pruning_method: Literal["sampled", "continuous"],
     ablation_value: Literal["zero", "mean"],
-    tasks: list[str],
+    circuit_names: List[str],
+    tasks: List[str],
+    eval_acc: bool = True,
+    eval_faithfulness: bool = False,
 ) -> dict:
     """
     Evaluates masked models on the individual functions.
 
     Args:
-        save_path (Path): The path to the saved models.
+        model_dir (Path): The directory of the saved models.
+        cache_dir (Path): The directory of the store cached probabilities.
+        result_dir (Path): The directory to store evaluation results.
         pruning_type (Literal["weights", "activations"]): The pruning type.
         pruning_method (Literal["sampled", "continuous"]): The pruning method.
-        tasks (list[str]): A list of tasks to evaluate the model on.
+        ablation_value (Literal["zero", "mean"]): The value to ablate with.
+        circuit_names (List[str]): A list of circuit names to evaluate.
+        tasks (List[str]): A list of tasks to evaluate the model on.
+        eval_acc (bool, optional): Whether to evaluate accuracy. Defaults to True.
+        eval_faithfulness (bool, optional): Whether to evaluate faithfulness. Defaults to False.
 
     Returns:
-        dict: A dictionary containing the evaluation results for each task.
+        dict: A dictionary containing the evaluation results for each task and circuit.
     """
-    result = defaultdict(list)
+    result: Dict[str, Dict[str, Dict[str, float]]] = {}
 
-    for mask_name in tasks:
-        logging.info(f"Evaluating model: {mask_name}")
+    for mask_name in circuit_names:
+        logging.info(f"Evaluating circuit: {mask_name}")
+        result.setdefault(mask_name, {})
 
         # load masked model
-        model_dir = save_path / mask_name
+        model_directory = model_dir / mask_name
         model_name = (
             f"{pruning_type}_{pruning_method}_{ablation_value}_pruned_model.ckpt"
         )
-        model_path = model_dir / model_name
+        model_path = model_directory / model_name
 
         model = load_model(model_path=model_path, is_masked=True)
-        tokenizer = load_tokenizer(model_dir)
+        tokenizer = load_tokenizer(model_directory)
 
         # eval model
         for task_name in tasks:
             data_path = DATA_DIR / task_name / "test.csv"
-            output_dir = result_dir / f"mask_{mask_name}_function_{task_name}"
+            output_dir = (
+                result_dir / mask_name / f"circuit_{mask_name}_function_{task_name}"
+            )
 
-            task_accuracy = eval_task(
+            eval_dict = eval_task(
                 task_name=task_name,
                 model=model,
                 tokenizer=tokenizer,
                 device=DEVICE,
-                eval_data_path=data_path,
                 output_dir=output_dir,
+                eval_data_path=data_path,
+                cached_probabilities_path=cache_dir
+                / task_name
+                / f"{task_name}_test.pt",
+                eval_acc=eval_acc,
+                eval_faithfulness=eval_faithfulness,
             )
-            result[mask_name].append(task_accuracy)
+            result[mask_name][task_name] = eval_dict
 
+        free_model(model)
     return result
 
 
@@ -139,22 +174,31 @@ def main() -> None:
     setup_logging(args.verbose)
     config = vars(args).copy()
     config_string = "\n".join([f"--{k}: {v}" for k, v in config.items()])
-    logging.info(f"\nRunning function evaluation with the config: \n{config_string}")
+    logging.info(
+        f"\nRunning circuit performance evaluation with the config: \n{config_string}"
+    )
 
-    result = run_mask_evaluation(
-        save_path=args.save_path,
+    result = run_circuit_performance_evaluation(
+        model_dir=args.model_path,
+        cache_dir=args.cache_dir,
         result_dir=args.result_dir,
         pruning_type=args.pruning_type,
         pruning_method=args.pruning_method,
         ablation_value=args.ablation_value,
+        circuit_names=args.circuit_names,
         tasks=args.eval_tasks,
+        eval_acc=True,
+        eval_faithfulness=True,
     )
     logging.info(result)
 
     # save result
     result = dict(result)
     json_dict = json.dumps(result)
-    output_path = args.result_dir / "function_evaluation_results.json"
+    output_path = (
+        args.result_dir
+        / f"{args.pruning_type}_{args.pruning_method}_{args.ablation_value}_circuit_performance_evaluation_results.json"
+    )
     with open(output_path, "w") as f:
         f.write(json_dict)
 

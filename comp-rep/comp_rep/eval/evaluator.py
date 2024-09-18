@@ -11,7 +11,12 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from comp_rep.data_prep.dataset import CollateFunctor, SequenceDataset
+from comp_rep.data_prep.dataset import (
+    CollateFunctor,
+    CollateFunctorWithProbabilities,
+    SequenceDataset,
+    SequenceDatasetWithProbabilities,
+)
 from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.metrics import jsd_faithfulness
 
@@ -128,9 +133,12 @@ def eval_task(
     model: nn.Module,
     tokenizer: Dict,
     device: str,
-    eval_data_path: Path,
     output_dir: Path,
-) -> float:
+    eval_data_path: Path,
+    cached_probabilities_path: Path = Path(),
+    eval_acc: bool = True,
+    eval_faithfulness: bool = False,
+) -> Dict[str, float]:
     """
     Evaluates the performance of a given model on a specific task.
 
@@ -143,21 +151,52 @@ def eval_task(
         output_dir (Path): The directory where the evaluation results will be saved.
 
     Returns:
-        float: The accuracy of the model on the given task.
+        Dict[str, float]: The accuracy and/or faithfulness of the model on the given task.
     """
     logging.info(f"Evaluating function: {task_name}")
 
-    eval_dataset = SequenceDataset(eval_data_path, tokenizer=tokenizer)
-    eval_loader = DataLoader(
-        eval_dataset,
-        batch_size=64,
-        collate_fn=CollateFunctor(),
-        shuffle=False,
-        num_workers=7,
-        persistent_workers=True,
-    )
-    searcher = GreedySearch(model, eval_dataset.output_language)
+    eval_dict: Dict[str, float] = {}
+    if not eval_acc and not eval_faithfulness:
+        logging.warning(
+            "task evaluation will be skipped as both 'eval_acc' and 'eval_faithfulness' are False!"
+        )
+        return eval_dict
 
-    accuracy = evaluate_generation(model, searcher, eval_loader, output_dir, device)
+    if eval_faithfulness:
+        eval_dataset: SequenceDataset | SequenceDatasetWithProbabilities = (
+            SequenceDatasetWithProbabilities(
+                path=eval_data_path,
+                probabilities_path=cached_probabilities_path,
+                tokenizer=tokenizer,
+            )
+        )
+        eval_loader = DataLoader(
+            eval_dataset,
+            batch_size=64,
+            collate_fn=CollateFunctorWithProbabilities(),
+            shuffle=False,
+            num_workers=7,
+            persistent_workers=True,
+        )
 
-    return accuracy
+        faithfulness = evaluate_task_faithfulness(
+            model=model, test_loader=eval_loader, device=device
+        )
+        eval_dict["faithfulness"] = faithfulness
+    else:
+        eval_dataset = SequenceDataset(eval_data_path, tokenizer=tokenizer)
+        eval_loader = DataLoader(
+            eval_dataset,
+            batch_size=64,
+            collate_fn=CollateFunctor(),
+            shuffle=False,
+            num_workers=7,
+            persistent_workers=True,
+        )
+
+    if eval_acc:
+        searcher = GreedySearch(model, eval_dataset.output_language)
+        accuracy = evaluate_generation(model, searcher, eval_loader, output_dir, device)
+        eval_dict["accuracy"] = accuracy
+
+    return eval_dict
