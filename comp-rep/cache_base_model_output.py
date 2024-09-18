@@ -106,6 +106,7 @@ def run_caching(model: nn.Module, loader: DataLoader, cache_save_path: Path) -> 
         dataset_probabilities.append(probas)
 
     dataset_probabilities_tensor = torch.stack(dataset_probabilities, dim=0)
+    dataset_probabilities_tensor = dataset_probabilities_tensor.detach().cpu()
     torch.save(dataset_probabilities_tensor, cache_save_path)
     logging.info("Finished writing cached probabilities to disk..")
 

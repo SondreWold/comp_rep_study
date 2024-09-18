@@ -25,7 +25,6 @@ DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 CURR_FILE_PATH = Path(__file__).resolve()
 CURR_FILE_DIR = CURR_FILE_PATH.parent
 DATA_DIR = CURR_FILE_PATH.parents[1] / "data/function_tasks"
-RESULT_DIR = CURR_FILE_DIR / "function_evaluations"
 
 
 def parse_args() -> argparse.Namespace:
@@ -57,6 +56,7 @@ def parse_args() -> argparse.Namespace:
 
     # Mask Configs
     parser.add_argument("--save_path", type=Path, help="Path to the saved models.")
+    parser.add_argument("--result_dir", type=Path, help="Path to the saved models.")
     parser.add_argument(
         "--pruning_type",
         type=str,
@@ -79,6 +79,7 @@ def parse_args() -> argparse.Namespace:
 
 def run_mask_evaluation(
     save_path: Path,
+    result_dir: Path,
     pruning_type: Literal["weights", "activations"],
     pruning_method: Literal["sampled", "continuous"],
     ablation_value: Literal["zero", "mean"],
@@ -114,7 +115,7 @@ def run_mask_evaluation(
         # eval model
         for task_name in tasks:
             data_path = DATA_DIR / task_name / "test.csv"
-            output_dir = RESULT_DIR / f"mask_{mask_name}_function_{task_name}"
+            output_dir = result_dir / f"mask_{mask_name}_function_{task_name}"
 
             task_accuracy = eval_task(
                 task_name=task_name,
@@ -142,6 +143,7 @@ def main() -> None:
 
     result = run_mask_evaluation(
         save_path=args.save_path,
+        result_dir=args.result_dir,
         pruning_type=args.pruning_type,
         pruning_method=args.pruning_method,
         ablation_value=args.ablation_value,
@@ -152,7 +154,7 @@ def main() -> None:
     # save result
     result = dict(result)
     json_dict = json.dumps(result)
-    output_path = RESULT_DIR / "function_evaluation_results.json"
+    output_path = args.result_dir / "function_evaluation_results.json"
     with open(output_path, "w") as f:
         f.write(json_dict)
 

@@ -21,6 +21,8 @@ from comp_rep.models.lightning_models import LitTransformer
 from comp_rep.models.lightning_pruned_models import LitPrunedModel
 from comp_rep.models.model import Transformer
 
+DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
+
 
 class ValidatePredictionPath(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -262,7 +264,8 @@ def create_transformer_from_checkpoint(model_path: Path) -> nn.Module:
         num_transformer_layers,
         hidden_size,
         dropout,
-    )
+    ).to(DEVICE)
+
     return base_model
 
 
