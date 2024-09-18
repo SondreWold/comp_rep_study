@@ -36,7 +36,7 @@ def parse_args() -> argparse.Namespace:
 
     # Eval Configs
     parser.add_argument(
-        "--eval_tasks",
+        "--circuit_names",
         nargs="+",
         default=MASK_TASKS,
         action=ValidateTaskOptions,
@@ -63,7 +63,6 @@ def parse_args() -> argparse.Namespace:
 
 
 def bar_plot(labels: list, values: list, path: Path) -> None:
-    print(labels, values)
     # Create a bar chart
     fig, ax = plt.subplots()
     sorted_pairs = sorted(zip(values, labels))
@@ -85,10 +84,10 @@ def bar_plot(labels: list, values: list, path: Path) -> None:
     ax.grid(True, axis="y", linestyle="--", alpha=0.6)
     plt.xticks(rotation=45, ha="right")
 
-    for bar in bars: 
+    for bar in bars:
         height = bar.get_height()
         ax.annotate(
-            f"{height:.0f}%",
+            f"{height: .0f}%",
             xy=(bar.get_x() + bar.get_width() / 2, height),
             xytext=(0, 3),  # Offset label slightly above the bar
             textcoords="offset points",

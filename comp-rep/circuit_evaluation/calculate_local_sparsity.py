@@ -36,7 +36,7 @@ def parse_args() -> argparse.Namespace:
 
     # Eval Configs
     parser.add_argument(
-        "--eval_tasks",
+        "--circuit_names",
         nargs="+",
         default=MASK_TASKS,
         action=ValidateTaskOptions,
