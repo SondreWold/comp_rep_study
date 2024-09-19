@@ -3,6 +3,7 @@ Utility functions and modules
 """
 
 import argparse
+import gc
 import json
 import logging
 import os
@@ -316,3 +317,20 @@ def get_current_layer_from_module_name(module_name: str) -> int:
             len(matches) == 1
         ), f"Ambiguous module name! Can not parse layer index. {module_name}"
         return int(matches[0][-1])
+
+
+def free_model(
+    model: nn.Module,
+) -> None:
+    """
+    Frees the memory occupied by a PyTorch model.
+
+    Args:
+        model (nn.Module): The PyTorch model to be freed.
+
+    Returns:
+        None
+    """
+    del model
+    torch.cuda.empty_cache()
+    gc.collect()

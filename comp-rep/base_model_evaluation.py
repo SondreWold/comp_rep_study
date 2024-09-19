@@ -83,14 +83,17 @@ def run_base_evaluation(
         data_path = DATA_DIR / task_name / "test.csv"
         output_dir = RESULT_DIR / f"base_model_function_{task_name}"
 
-        task_accuracy = eval_task(
+        eval_dict = eval_task(
             task_name=task_name,
             model=model,
             tokenizer=tokenizer,
             device=DEVICE,
             eval_data_path=data_path,
             output_dir=output_dir,
+            eval_acc=True,
+            eval_faithfulness=False,
         )
+        task_accuracy = eval_dict["accuracy"]
         result[task_name].append(task_accuracy)
     return result
 

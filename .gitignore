@@ -181,3 +181,9 @@ data/*
 
 # sweep configs
 comp-rep/sweeps
+
+# results
+experimental_results
+
+# mean activation values
+mean_ablation_values
