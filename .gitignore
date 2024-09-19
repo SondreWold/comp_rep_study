@@ -186,4 +186,4 @@ comp-rep/sweeps
 experimental_results
 
 # mean activation values
-mean_ablation_values copy
+mean_ablation_values
