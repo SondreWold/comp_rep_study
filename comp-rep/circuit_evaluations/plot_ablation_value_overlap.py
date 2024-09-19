@@ -3,6 +3,7 @@ import logging
 import os
 from pathlib import Path
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -97,6 +98,7 @@ def bar_plot(labels: list, values: list, path: Path) -> None:
 
     x = np.arange(len(labels))  # the label locations
     width = 0.35  # the width of the bars
+    fontsize = 16
 
     # Plotting the bars with different colors and patterns
     rects1 = ax.bar(
@@ -115,8 +117,8 @@ def bar_plot(labels: list, values: list, path: Path) -> None:
     ax.set_ylim(0, 100)
 
     # Adding labels and title
-    ax.set_xlabel("Subtask", fontsize=12)
-    ax.set_ylabel("Overlap (%)", fontsize=12)
+    ax.set_xlabel("Subtask", fontsize=fontsize)
+    ax.set_ylabel("Overlap (%)", fontsize=fontsize)
     # ax.set_title("Comparison of IoU and IoM per Subtask", fontsize=14)
 
     # Adding gridlines for better readability
@@ -124,7 +126,8 @@ def bar_plot(labels: list, values: list, path: Path) -> None:
 
     # Customize x-axis
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=45, ha="right")
+    ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=fontsize)
+    matplotlib.rcParams.update({"font.size": fontsize})
 
     # Add value labels on the bars
     def autolabel(rects):

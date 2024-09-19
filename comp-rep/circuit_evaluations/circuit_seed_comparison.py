@@ -9,6 +9,7 @@ from pathlib import Path
 
 import torch
 
+from comp_rep.constants import MASK_TASKS
 from comp_rep.pruning.subnetwork_mask_metrics import (
     iom_by_layer_and_module,
     iou_by_layer_and_module,
@@ -38,6 +39,12 @@ def parse_args() -> argparse.Namespace:
         default=1,
         choices=[0, 1, 2],
         help="Verbose mode (0: WARNING, 1: INFO, 2: DEBUG)",
+    )
+    parser.add_argument(
+        "--circuit_name",
+        choices=MASK_TASKS,
+        default="copy",
+        help="Task(s) to evaluate model on.",
     )
 
     # Eval Configs
@@ -130,7 +137,7 @@ def main() -> None:
     # save result
     result = dict(result)
     json_dict = json.dumps(result)
-    output_path = args.result_dir / "seed_overlap.json"
+    output_path = args.result_dir / f"{args.circuit_name}_seed_overlap.json"
     with open(output_path, "w") as f:
         f.write(json_dict)
 

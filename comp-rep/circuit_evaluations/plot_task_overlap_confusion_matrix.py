@@ -101,6 +101,7 @@ if __name__ == "__main__":
 
     # Create the heatmap
     plt.figure(figsize=(12, 10))
+    sns.set(font_scale=1.5)
     sns.heatmap(
         matrix,
         annot=True,
