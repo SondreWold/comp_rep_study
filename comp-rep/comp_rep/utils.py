@@ -208,6 +208,7 @@ def load_model(
     model_path: Path,
     is_masked: bool,
     model: Optional[nn.Module] = None,
+    return_pl: Optional[bool] = False,
 ):
     """
     Loads a model from a given checkpoint.
@@ -227,11 +228,16 @@ def load_model(
         pl_pruner = LitPrunedModel.load_from_checkpoint(model_path, model=model)  # type: ignore
         pl_pruner.pruner.activate_ticket()
         pl_pruner.pruner.compute_and_update_masks()
-        model = pl_pruner.model
+        if return_pl:
+            model = pl_pruner
+        else:
+            model = pl_pruner.model
     else:
         pl_transformer = LitTransformer.load_from_checkpoint(model_path)  # type: ignore
-        model = pl_transformer.model
-
+        if return_pl:
+            model = pl_transformer
+        else:
+            model = pl_transformer.model
     return model
 
 
