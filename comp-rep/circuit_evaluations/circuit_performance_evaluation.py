@@ -5,6 +5,7 @@ Evaluate masked models on the individual functions
 import argparse
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Dict, List, Literal
 
@@ -187,7 +188,7 @@ def main() -> None:
         ablation_value=args.ablation_value,
         circuit_names=args.circuit_names,
         tasks=args.eval_tasks,
-        eval_acc=True,
+        eval_acc=False,
         eval_faithfulness=True,
     )
     logging.info(result)
@@ -199,6 +200,7 @@ def main() -> None:
         args.result_dir
         / f"{args.pruning_type}_{args.pruning_method}_{args.ablation_value}_circuit_performance_evaluation_results.json"
     )
+    os.makedirs(args.result_dir, exist_ok=True)
     with open(output_path, "w") as f:
         f.write(json_dict)
 

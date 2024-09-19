@@ -92,3 +92,26 @@ def test_large_values():
     q_probs = torch.tensor([[0.0, 0.0, 1.0]])
     jsd = jensen_shannon_divergence_from_logits(p_logits, q_probs)
     assert jsd >= 0.0, "JSD should handle large values without numerical issues."
+
+
+def test_bounds():
+    """
+    Test that the JSD between highly different distribution is one.
+    """
+    p_logits = torch.tensor([[-100000.0, 0.0, -1000000.0]])
+    q_probs = torch.tensor([[1.0, 0.0, 0.0]])
+    jsd = jensen_shannon_divergence_from_logits(p_logits, q_probs)
+    assert abs(jsd - 1.0) < 1e-6, "JSD should be 1 for one-hot different distributions."
+
+
+def test_exact_values():
+    """
+    Test JSD between two given distributions.
+    """
+    p_probs = torch.tensor([[0.3, 0.2, 0.0, 0.1, 0.0, 0.4]])
+    p_logits = torch.log(p_probs)
+    q_probs = torch.tensor([[0.1, 0.0, 0.2, 0.3, 0.0, 0.4]])
+    jsd = jensen_shannon_divergence_from_logits(p_logits, q_probs)
+    assert (
+        abs(jsd - 0.2755) < 1e-4
+    ), "JSD should be one for one-hot different distributions."
