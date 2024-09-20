@@ -64,6 +64,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--result_dir", type=Path, help="Path to where the results are saved."
     )
+    parser.add_argument(
+        "--mask_func_equivalence",
+        action="store_true",
+        help="Mask function equivalence.",
+    )
 
     # Mask Configs
     parser.add_argument("--model_path", type=Path, help="Path to the saved models.")
@@ -195,16 +200,21 @@ def main() -> None:
         tasks=args.eval_tasks,
         eval_acc=True,
         eval_faithfulness=True,
-        mask_func_equivalence=True,
+        mask_func_equivalence=args.mask_func_equivalence,
     )
     logging.info(result)
+
+    if args.mask_func_equivalence:
+        func_equivalence_str = "func_equivalence_mask_"
+    else:
+        func_equivalence_str = ""
 
     # save result
     result = dict(result)
     json_dict = json.dumps(result)
     output_path = (
         args.result_dir
-        / f"{args.pruning_type}_{args.pruning_method}_{args.ablation_value}_circuit_performance_evaluation_results.json"
+        / f"{args.pruning_type}_{args.pruning_method}_{args.ablation_value}_circuit_{func_equivalence_str}performance_evaluation_results.json"
     )
     os.makedirs(args.result_dir, exist_ok=True)
     with open(output_path, "w") as f:
