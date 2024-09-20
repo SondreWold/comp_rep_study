@@ -12,11 +12,13 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from comp_rep.data_prep.dataset import (
+    PAD_TOKEN,
     CollateFunctor,
     CollateFunctorWithProbabilities,
     SequenceDataset,
     SequenceDatasetWithProbabilities,
 )
+from comp_rep.eval.cross_task_evaluations import compute_str_match_mask
 from comp_rep.eval.decoding import GreedySearch
 from comp_rep.eval.metrics import jsd_faithfulness
 
@@ -84,6 +86,9 @@ def evaluate_task_faithfulness(
     model: nn.Module,
     test_loader: DataLoader,
     device: Union[str, torch.device] = "cuda:0",
+    mask_func_equivalence: bool = False,
+    circuit_name: str = "copy",
+    eval_task_name: str = "copy",
 ) -> float:
     """
     Evaluates the faithfulness of a given model on a test dataset.
@@ -103,9 +108,15 @@ def evaluate_task_faithfulness(
     n_batches: int = 0
 
     for batch in tqdm(test_loader):
-        source_ids, source_mask, target_ids, target_mask, target_probabilities, _, _ = (
-            batch
-        )
+        (
+            source_ids,
+            source_mask,
+            target_ids,
+            target_mask,
+            target_probabilities,
+            source_str,
+            target_str,
+        ) = batch
 
         # Move tensors to device
         source_ids = source_ids.to(device)
@@ -114,16 +125,42 @@ def evaluate_task_faithfulness(
         target_mask = target_mask.to(device)
         target_probabilities = target_probabilities.to(device)
 
+        # Mask pad tokens
+        pad_mask = (target_ids[:, 1:] != PAD_TOKEN).float()
+
+        # Mask equivalent tokens for cross-task-faithfulness
+        if mask_func_equivalence:
+            func_mask = compute_str_match_mask(
+                source_str=source_str,
+                target_str=target_str,
+                max_seq_len=target_probabilities.shape[-2],
+                circuit_name=circuit_name,
+                eval_task_name=eval_task_name,
+            ).to(device)
+            pad_mask = pad_mask * func_mask
+
+        # Skip if all tokens would be padded in batch
+        if pad_mask.sum() == 0:
+            logging.warning("Pad mask was zero for all entries!")
+            continue
+
         # Left shift the targets so that the last token predicts the EOS
         model_logits = model(
             source_ids, source_mask, target_ids[:, :-1], target_mask[:, :-1]
         )  # [batch size, max seq len, vocab]
 
         faithfulness_score = jsd_faithfulness(
-            p_logits=model_logits, q_probs=target_probabilities, eps=1e-10
+            p_logits=model_logits,
+            q_probs=target_probabilities,
+            eps=1e-10,
+            mask=pad_mask,
         )
         total_faithfulness_score += faithfulness_score
         n_batches += 1
+
+    if n_batches == 0:
+        logging.warning("No batches have been processed!")
+        return float("nan")
 
     return total_faithfulness_score / n_batches
 
@@ -138,6 +175,9 @@ def eval_task(
     cached_probabilities_path: Path = Path(),
     eval_acc: bool = True,
     eval_faithfulness: bool = False,
+    mask_func_equivalence: bool = False,
+    circuit_name: str = "copy",
+    eval_task_name: str = "copy",
 ) -> Dict[str, float]:
     """
     Evaluates the performance of a given model on a specific task.
@@ -180,7 +220,12 @@ def eval_task(
         )
 
         faithfulness = evaluate_task_faithfulness(
-            model=model, test_loader=eval_loader, device=device
+            model=model,
+            test_loader=eval_loader,
+            device=device,
+            mask_func_equivalence=mask_func_equivalence,
+            circuit_name=circuit_name,
+            eval_task_name=eval_task_name,
         )
         eval_dict["faithfulness"] = faithfulness
     else:

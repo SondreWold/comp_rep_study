@@ -105,6 +105,7 @@ def run_circuit_performance_evaluation(
     tasks: List[str],
     eval_acc: bool = True,
     eval_faithfulness: bool = False,
+    mask_func_equivalence: bool = False,
 ) -> dict:
     """
     Evaluates masked models on the individual functions.
@@ -120,6 +121,7 @@ def run_circuit_performance_evaluation(
         tasks (List[str]): A list of tasks to evaluate the model on.
         eval_acc (bool, optional): Whether to evaluate accuracy. Defaults to True.
         eval_faithfulness (bool, optional): Whether to evaluate faithfulness. Defaults to False.
+        eval_faithfulness (bool, optional): Whether to mask function equivalent tokens. Defaults to False.
 
     Returns:
         dict: A dictionary containing the evaluation results for each task and circuit.
@@ -159,6 +161,9 @@ def run_circuit_performance_evaluation(
                 / f"{task_name}_test.pt",
                 eval_acc=eval_acc,
                 eval_faithfulness=eval_faithfulness,
+                mask_func_equivalence=mask_func_equivalence,
+                circuit_name=mask_name,
+                eval_task_name=task_name,
             )
             result[mask_name][task_name] = eval_dict
 
@@ -188,8 +193,9 @@ def main() -> None:
         ablation_value=args.ablation_value,
         circuit_names=args.circuit_names,
         tasks=args.eval_tasks,
-        eval_acc=False,
+        eval_acc=True,
         eval_faithfulness=True,
+        mask_func_equivalence=True,
     )
     logging.info(result)
 
