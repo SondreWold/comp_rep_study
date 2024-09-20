@@ -59,8 +59,8 @@ def get_regularized_logits_loss(
         reduction="none",
     )
     pad_mask = target_ids == PAD_TOKEN
-    loss = cross_entropy_loss.sum(dim=-1) / pad_mask.sum(dim=-1)
-    loss = torch.mean(loss, dim=0)
+    cross_entropy_loss = cross_entropy_loss.sum(dim=-1) / pad_mask.sum(dim=-1)
+    cross_entropy_loss = torch.mean(cross_entropy_loss, dim=0)
     norms = pl_module.pruner.compute_l1_norm()
     mask_loss = mask_lambda * norms
     loss = cross_entropy_loss + mask_loss
