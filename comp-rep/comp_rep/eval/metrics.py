@@ -3,6 +3,7 @@ Evaluation metrics
 """
 
 import math
+from typing import Optional
 
 import torch
 import torch.nn.functional as F
@@ -10,7 +11,7 @@ from torch import Tensor
 
 
 def jensen_shannon_divergence_from_logits(
-    p_logits: Tensor, q_probs: Tensor, eps: float = 1e-10
+    p_logits: Tensor, q_probs: Tensor, eps: float = 1e-10, mask: Optional[Tensor] = None
 ) -> float:
     """
     Computes the normalized Jensen-Shannon Divergence (JSD) between two probability distributions.
@@ -19,6 +20,7 @@ def jensen_shannon_divergence_from_logits(
         p_logits (Tensor): The logits of the first probability distribution.
         q_probs (Tensor): The probabilities of the second probability distribution.
         eps (float, optional): A small value added to the probabilities for numerical stability. Defaults to 1e-10.
+        mask: (Tensor, optional): A mask for the loss calculation. Defaults to None.
 
     Returns:
         float: The Jensen-Shannon Divergence between the two probability distributions.
@@ -43,16 +45,35 @@ def jensen_shannon_divergence_from_logits(
     # Jensen-Shannon Divergence
     jsd = 0.5 * (kl_pm + kl_qm)  # Shape: [batch_size, seq_len]
 
-    # Average over sequence and batch
-    if len(jsd.shape) == 2:
-        jsd = jsd.mean(dim=-1)
-    jsd_batch_mean = jsd.mean(dim=-1)
-    jsd_normalized = jsd_batch_mean / math.log(2)
+    # Mask tokens for cross-task-faithfulness
+    if mask is not None:
+        jsd = jsd * mask
 
+        # Average over sequence
+        if len(jsd.shape) == 2:
+            seq_loss_sum = jsd.sum(dim=-1)
+            seq_mask_sum = mask.sum(dim=-1)
+            jsd = seq_loss_sum / (
+                seq_mask_sum + (seq_mask_sum == 0) * eps
+            )  # avoid division by 0
+
+        # Average over batch
+        non_zero_sequences = (mask.sum(dim=-1) > 0).sum()
+        jsd_batch_mean = jsd.sum(dim=-1) / (
+            non_zero_sequences + (non_zero_sequences == 0) * eps
+        )
+    else:
+        if len(jsd.shape) == 2:
+            jsd = jsd.mean(dim=-1)
+        jsd_batch_mean = jsd.mean(dim=-1)
+
+    jsd_normalized = jsd_batch_mean / math.log(2)
     return jsd_normalized.item()
 
 
-def jsd_faithfulness(p_logits: Tensor, q_probs: Tensor, eps: float = 1e-10) -> float:
+def jsd_faithfulness(
+    p_logits: Tensor, q_probs: Tensor, eps: float = 1e-10, mask: Optional[Tensor] = None
+) -> float:
     """
     Computes the faithfulness of a probability distribution based on the Jensen-Shannon Divergence (JSD) between two distributions.
 
@@ -60,8 +81,11 @@ def jsd_faithfulness(p_logits: Tensor, q_probs: Tensor, eps: float = 1e-10) -> f
         p_logits (Tensor): The logits of the first probability distribution.
         q_probs (Tensor): The probabilities of the second probability distribution.
         eps (float, optional): A small value added to the probabilities for numerical stability. Defaults to 1e-10.
+        mask: (Tensor, optional): A mask for the loss calculation. Defaults to None.
 
     Returns:
         float: The faithfulness of the probability distribution, calculated as 1 minus the JSD between the two distributions.
     """
-    return 1.0 - jensen_shannon_divergence_from_logits(p_logits, q_probs, eps=eps)
+    return 1.0 - jensen_shannon_divergence_from_logits(
+        p_logits, q_probs, eps=eps, mask=mask
+    )
