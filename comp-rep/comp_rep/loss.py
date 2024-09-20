@@ -3,7 +3,10 @@ Loss computations.
 """
 
 import lightning as L
+import torch
 import torch.nn.functional as F
+
+from comp_rep.data_prep.dataset import PAD_TOKEN
 
 
 def get_logits_loss(
@@ -26,7 +29,9 @@ def get_logits_loss(
     # Transpose output to [batch size, vocab, seq len] to match the required dims for CE.
     # Also, right shift the targets so that it matches the output order.
     # (at position k the decoder writes to pos k + 1)
-    loss = F.cross_entropy(logits.transpose(-2, -1), target_ids[:, 1:])
+    loss = F.cross_entropy(
+        logits.transpose(-2, -1), target_ids[:, 1:], ignore_index=PAD_TOKEN
+    )
     return logits, loss
 
 
@@ -46,11 +51,16 @@ def get_regularized_logits_loss(
     Returns:
         tuple: A tuple containing logits, cross entropy loss, mask loss, and total loss.
     """
-    _, _, _, _, target_probabilities, _, _ = batch
+    _, _, target_ids, _, target_probabilities, _, _ = batch
     logits = pl_module(batch)
     cross_entropy_loss = F.cross_entropy(
-        logits.transpose(-2, -1), target_probabilities.transpose(-2, -1)
+        logits.transpose(-2, -1),
+        target_probabilities.transpose(-2, -1),
+        reduction="none",
     )
+    pad_mask = target_ids == PAD_TOKEN
+    loss = cross_entropy_loss.sum(dim=-1) / pad_mask.sum(dim=-1)
+    loss = torch.mean(loss, dim=0)
     norms = pl_module.pruner.compute_l1_norm()
     mask_loss = mask_lambda * norms
     loss = cross_entropy_loss + mask_loss
