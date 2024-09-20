@@ -13,6 +13,7 @@ from comp_rep.data_prep.operations import (
     copy,
     echo,
     prepend,
+    remove_first,
     remove_second,
     repeat,
     reverse,
@@ -35,6 +36,7 @@ FUNC_BY_STR: Dict[str, Callable[..., List[str]]] = {
     "repeat": repeat,
     "append": append,
     "prepend": prepend,
+    "remove_first": remove_first,
     "remove_second": remove_second,
 }
 
