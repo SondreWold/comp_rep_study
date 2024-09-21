@@ -123,9 +123,9 @@ def get_longest_item_of_dataset(dataset: SequenceDataset) -> int:
     """
     max_seen_length = 0
     for idx in range(0, len(dataset)):
-        _, target_tensor, _, _ = dataset[idx]  # type: ignore
-        current_length = len(target_tensor)
-        max_seen_length = max(max_seen_length, current_length)
+        source_ids, target_ids, _, _ = dataset[idx]  # type: ignore
+        local_max_length = max(len(source_ids), len(target_ids))
+        max_seen_length = max(max_seen_length, local_max_length)
     return max_seen_length
 
 
