@@ -168,9 +168,7 @@ class SequenceDataset(Dataset):
 
 
 class CollateFunctor:
-    def __init__(
-        self, probability_mode: bool = False, max_length: Optional[int] = None
-    ) -> None:
+    def __init__(self, max_length: Optional[int] = None) -> None:
         self.pad_id = PAD_TOKEN
         self.max_length = max_length
 
