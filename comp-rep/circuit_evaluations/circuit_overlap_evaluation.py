@@ -12,6 +12,7 @@ from typing import Dict, List, Literal, Tuple
 
 import torch
 
+from comp_rep.constants import MASK_TASKS
 from comp_rep.pruning.subnetwork_mask_metrics import (
     iom_by_layer_and_module,
     iou_by_layer_and_module,
@@ -67,7 +68,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--circuit_names",
         nargs="+",
-        default=["append"],
+        default=MASK_TASKS,
         action=ValidateTaskOptions,
         help="Name of subtask on which model has been pruned on.",
     )

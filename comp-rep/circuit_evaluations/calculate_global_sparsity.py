@@ -129,7 +129,6 @@ def main() -> None:
             "global_remaining_mask"
         ]
         sparsity[f"{task}"] = global_remaining_mask * 100
-        print(task, global_remaining_mask)
     labels = list(sparsity.keys())
     values = list(sparsity.values())
     os.makedirs(RESULT_DIR, exist_ok=True)
