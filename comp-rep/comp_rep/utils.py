@@ -228,10 +228,7 @@ def load_model(
         if model is None:
             model = create_transformer_from_checkpoint(model_path)
 
-        if ce_subtask:
-            pl_pruner = LitPrunedModel.load_from_checkpoint(model_path, model=model, ce_subtask=ce_subtask)  # type: ignore
-        else:
-            pl_pruner = LitPrunedModel.load_from_checkpoint(model_path, model=model)  # type: ignore
+        pl_pruner = LitPrunedModel.load_from_checkpoint(model_path, model=model, ce_subtask=ce_subtask)  # type: ignore
         pl_pruner.pruner.activate_ticket()
         pl_pruner.pruner.compute_and_update_masks()
         if return_pl:
