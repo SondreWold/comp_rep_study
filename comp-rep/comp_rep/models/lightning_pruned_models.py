@@ -3,7 +3,7 @@ Pytorch Lightning module for the Pruned Transformer model.
 """
 
 import argparse
-from typing import Any, Dict, Literal
+from typing import Any, Dict, Literal, Optional
 
 import lightning as L
 import torch.optim as optim
@@ -24,10 +24,13 @@ class LitPrunedModel(L.LightningModule):
         model: nn.Module,
         pruning_type: Literal["activations", "weights"],
         pruning_kwargs: Dict,
+        ce_subtask: Optional[str] = None,
     ):
         super().__init__()
         self.save_hyperparameters(ignore=["model"])
         self.args = args
+        if ce_subtask:
+            pruning_kwargs["subtask"] = ce_subtask
 
         # init model and pruner in class
         self.model = model

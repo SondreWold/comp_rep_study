@@ -210,6 +210,7 @@ def load_model(
     is_masked: bool,
     model: Optional[nn.Module] = None,
     return_pl: Optional[bool] = False,
+    ce_subtask: Optional[str] = None,
 ):
     """
     Loads a model from a given checkpoint.
@@ -218,6 +219,7 @@ def load_model(
         model_path (Path): The path to the model checkpoint.
         is_masked (bool): Whether the model is masked or not.
         model (Optional[nn.Module]): The model to load from the checkpoint. Defaults to None.
+        ce_subtask (Optional[str]): If set, the LitPrunedModel will load the target task mean ablation values, not the values of the loaded circuit
 
     Returns:
         nn.Module: The loaded model.
@@ -226,7 +228,10 @@ def load_model(
         if model is None:
             model = create_transformer_from_checkpoint(model_path)
 
-        pl_pruner = LitPrunedModel.load_from_checkpoint(model_path, model=model)  # type: ignore
+        if ce_subtask:
+            pl_pruner = LitPrunedModel.load_from_checkpoint(model_path, model=model, ce_subtask=ce_subtask)  # type: ignore
+        else:
+            pl_pruner = LitPrunedModel.load_from_checkpoint(model_path, model=model)  # type: ignore
         pl_pruner.pruner.activate_ticket()
         pl_pruner.pruner.compute_and_update_masks()
         if return_pl:

@@ -73,6 +73,11 @@ def parse_args() -> argparse.Namespace:
     # Mask Configs
     parser.add_argument("--model_path", type=Path, help="Path to the saved models.")
     parser.add_argument(
+        "--cross_task_ablation_loading",
+        action="store_true",
+        help="When set to True, this will load the target eval tasks mean ablation values, not the circuits own mean ablation values",
+    )
+    parser.add_argument(
         "--circuit_names",
         nargs="+",
         default=["append"],
@@ -111,6 +116,7 @@ def run_circuit_performance_evaluation(
     eval_acc: bool = True,
     eval_faithfulness: bool = False,
     mask_func_equivalence: bool = False,
+    cross_task_ablation_loading: bool = False,
 ) -> dict:
     """
     Evaluates masked models on the individual functions.
@@ -127,6 +133,7 @@ def run_circuit_performance_evaluation(
         eval_acc (bool, optional): Whether to evaluate accuracy. Defaults to True.
         eval_faithfulness (bool, optional): Whether to evaluate faithfulness. Defaults to False.
         eval_faithfulness (bool, optional): Whether to mask function equivalent tokens. Defaults to False.
+        cross_task_ablation_loading (bool): Whether to load the ablation value from the target task. Defaults to False.
 
     Returns:
         dict: A dictionary containing the evaluation results for each task and circuit.
@@ -144,11 +151,17 @@ def run_circuit_performance_evaluation(
         )
         model_path = model_directory / model_name
 
-        model = load_model(model_path=model_path, is_masked=True)
         tokenizer = load_tokenizer(model_directory)
 
         # eval model
         for task_name in tasks:
+            if not cross_task_ablation_loading or ablation_value == "zero":
+                ce_subtask = None
+            else:
+                ce_subtask = task_name
+            model = load_model(
+                model_path=model_path, is_masked=True, ce_subtask=ce_subtask
+            )
             data_path = DATA_DIR / task_name / "test.csv"
             output_dir = (
                 result_dir / mask_name / f"circuit_{mask_name}_function_{task_name}"
@@ -201,6 +214,7 @@ def main() -> None:
         eval_acc=True,
         eval_faithfulness=True,
         mask_func_equivalence=args.mask_func_equivalence,
+        cross_task_ablation_loading=args.cross_task_ablation_loading,
     )
     logging.info(result)
 
