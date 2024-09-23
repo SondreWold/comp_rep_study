@@ -13,7 +13,7 @@ DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 CURR_FILE_PATH = Path(__file__).resolve()
 CURR_FILE_DIR = CURR_FILE_PATH.parent
-RESULT_DIR = CURR_FILE_DIR / "sparsity"
+RESULT_DIR = CURR_FILE_PATH.parents[2] / "results"
 
 
 def parse_args() -> argparse.Namespace:
@@ -76,7 +76,7 @@ def main() -> None:
     )
 
     sparsity = {}
-    for task in args.eval_tasks:
+    for task in args.circuit_names:
         logging.info(f"Getting local sparsity for subtask: {task}")
         model_path = (
             args.save_path
