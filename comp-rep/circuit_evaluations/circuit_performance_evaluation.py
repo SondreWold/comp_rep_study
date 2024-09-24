@@ -17,6 +17,7 @@ from comp_rep.utils import (
     ValidateTaskOptions,
     ValidateWandbPath,
     free_model,
+    load_json,
     load_model,
     load_tokenizer,
     setup_logging,
@@ -27,6 +28,9 @@ DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 CURR_FILE_PATH = Path(__file__).resolve()
 CURR_FILE_DIR = CURR_FILE_PATH.parent
 DATA_DIR = CURR_FILE_PATH.parents[2] / "data/function_tasks"
+MEAN_ABLATION_VALUES_PATH = (
+    CURR_FILE_PATH.parents[1] / "comp_rep" / "pruning" / "mean_ablation_values"
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -93,7 +97,7 @@ def parse_args() -> argparse.Namespace:
         "--ablation_value",
         type=str,
         choices=["zero", "mean"],
-        default="zero",
+        default="mean",
         help="Which value to ablate with",
     )
     return parser.parse_args()
@@ -144,7 +148,7 @@ def run_circuit_performance_evaluation(
         )
         model_path = model_directory / model_name
 
-        model = load_model(model_path=model_path, is_masked=True)
+        pl_pruner = load_model(model_path=model_path, is_masked=True, return_pl=True)
         tokenizer = load_tokenizer(model_directory)
 
         # eval model
@@ -153,6 +157,17 @@ def run_circuit_performance_evaluation(
             output_dir = (
                 result_dir / mask_name / f"circuit_{mask_name}_function_{task_name}"
             )
+
+            # set ablation values to match task values
+            if ablation_value == "mean":
+                ablation_value_path = (
+                    MEAN_ABLATION_VALUES_PATH
+                    / f"{task_name.lower()}_mean_ablation_values.json"
+                )
+                ablation_data = load_json(ablation_value_path)
+                pl_pruner.pruner.set_ablation_value(ablation_data=ablation_data)
+
+            model = pl_pruner.model
 
             eval_dict = eval_task(
                 task_name=task_name,

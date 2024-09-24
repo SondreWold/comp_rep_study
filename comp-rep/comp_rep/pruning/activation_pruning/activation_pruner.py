@@ -4,7 +4,7 @@ Modules to find subnetworks via model activation pruning
 
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Dict, Literal
 
 import torch
 import torch.nn as nn
@@ -101,6 +101,40 @@ class ActivationPruner(Pruner):
                     replace_activation_layer(child, parents)
 
         replace_activation_layer(self.model, "model")
+
+    def set_ablation_value(self, ablation_data: Dict) -> None:
+        """
+        Sets the ablation value for the model.
+
+        Args:
+            ablation_data (Dict): A dictionary containing the ablation values for each layer.
+
+        Returns:
+            None
+        """
+        assert (
+            self.ablation_value == "mean"
+        ), "ablation_value is not 'mean'! Do not set new ablation value."
+
+        def set_ablation_value_layer(module: nn.Module, parent_name: str) -> None:
+            for name, child in module.named_children():
+                parents = f"{parent_name}.{name}"
+                if isinstance(child, ContinuousMaskedActivationLayer):
+                    try:
+                        ablation_value = torch.tensor(ablation_data[parents])
+                    except KeyError:
+                        raise KeyError(
+                            "Failed to match model name to ablation value key"
+                        )
+                    setattr(
+                        child,
+                        "ablation_values",
+                        ablation_value.to(child.ablation_values.device),
+                    )
+                else:
+                    set_ablation_value_layer(child, parents)
+
+        set_ablation_value_layer(self.model, "model")
 
     def get_remaining_mask(self) -> dict:
         """
