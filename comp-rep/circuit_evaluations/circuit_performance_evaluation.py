@@ -158,14 +158,15 @@ def run_circuit_performance_evaluation(
                 result_dir / mask_name / f"circuit_{mask_name}_function_{task_name}"
             )
 
-            ablation_value_path = (
-                MEAN_ABLATION_VALUES_PATH
-                / f"{task_name.lower()}_mean_ablation_values.json"
-            )
-            ablation_data = load_json(ablation_value_path)
-
             # set ablation values to match task values
-            pl_pruner.pruner.set_ablation_value(ablation_data=ablation_data)
+            if ablation_value == "mean":
+                ablation_value_path = (
+                    MEAN_ABLATION_VALUES_PATH
+                    / f"{task_name.lower()}_mean_ablation_values.json"
+                )
+                ablation_data = load_json(ablation_value_path)
+                pl_pruner.pruner.set_ablation_value(ablation_data=ablation_data)
+
             model = pl_pruner.model
 
             eval_dict = eval_task(
