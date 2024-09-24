@@ -113,10 +113,21 @@ def test_exact_values():
     p_probs = torch.tensor([[0.3, 0.2, 0.0, 0.1, 0.0, 0.4]])
     p_logits = torch.log(p_probs)
     q_probs = torch.tensor([[0.1, 0.0, 0.2, 0.3, 0.0, 0.4]])
-    jsd = jensen_shannon_divergence_from_logits(p_logits, q_probs)
+    jsd = jensen_shannon_divergence_from_logits(p_logits, q_probs, sqrt=False)
+    assert abs(jsd - 0.2755) < 1e-4, "JSD should be around 0.2755 for given probs."
+
+
+def test_exact_values_with_sqrt():
+    """
+    Test JSD between two given distributions.
+    """
+    p_probs = torch.tensor([[0.3, 0.2, 0.0, 0.1, 0.0, 0.4]])
+    p_logits = torch.log(p_probs)
+    q_probs = torch.tensor([[0.1, 0.0, 0.2, 0.3, 0.0, 0.4]])
+    jsd = jensen_shannon_divergence_from_logits(p_logits, q_probs, sqrt=True)
     assert (
-        abs(jsd - 0.2755) < 1e-4
-    ), "JSD should be one for one-hot different distributions."
+        abs(jsd - 0.2755**0.5) < 1e-4
+    ), "JS-distance should be around 0.2755**0.5 for given probs.."
 
 
 def test_jsd_with_mask():
