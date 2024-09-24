@@ -11,7 +11,11 @@ from torch import Tensor
 
 
 def jensen_shannon_divergence_from_logits(
-    p_logits: Tensor, q_probs: Tensor, eps: float = 1e-10, mask: Optional[Tensor] = None
+    p_logits: Tensor,
+    q_probs: Tensor,
+    eps: float = 1e-10,
+    mask: Optional[Tensor] = None,
+    sqrt: bool = False,
 ) -> float:
     """
     Computes the normalized Jensen-Shannon Divergence (JSD) between two probability distributions.
@@ -21,6 +25,7 @@ def jensen_shannon_divergence_from_logits(
         q_probs (Tensor): The probabilities of the second probability distribution.
         eps (float, optional): A small value added to the probabilities for numerical stability. Defaults to 1e-10.
         mask: (Tensor, optional): A mask for the loss calculation. Defaults to None.
+        sqrt: (bool, optional): Whether to take the square-root of the JSD to obtain the Jensen-Shannon distance instead of the divergence. Defaults to False.
 
     Returns:
         float: The Jensen-Shannon Divergence between the two probability distributions.
@@ -68,11 +73,19 @@ def jensen_shannon_divergence_from_logits(
         jsd_batch_mean = jsd.mean(dim=-1)
 
     jsd_normalized = jsd_batch_mean / math.log(2)
+
+    if sqrt:
+        return torch.sqrt(jsd_normalized).item()
+
     return jsd_normalized.item()
 
 
 def jsd_faithfulness(
-    p_logits: Tensor, q_probs: Tensor, eps: float = 1e-10, mask: Optional[Tensor] = None
+    p_logits: Tensor,
+    q_probs: Tensor,
+    eps: float = 1e-10,
+    mask: Optional[Tensor] = None,
+    sqrt: bool = False,
 ) -> float:
     """
     Computes the faithfulness of a probability distribution based on the Jensen-Shannon Divergence (JSD) between two distributions.
@@ -82,10 +95,61 @@ def jsd_faithfulness(
         q_probs (Tensor): The probabilities of the second probability distribution.
         eps (float, optional): A small value added to the probabilities for numerical stability. Defaults to 1e-10.
         mask: (Tensor, optional): A mask for the loss calculation. Defaults to None.
+        sqrt: (bool, optional): Whether to take the square-root of the JSD to obtain the Jensen-Shannon distance instead of the divergence. Defaults to False.
 
     Returns:
         float: The faithfulness of the probability distribution, calculated as 1 minus the JSD between the two distributions.
     """
     return 1.0 - jensen_shannon_divergence_from_logits(
-        p_logits, q_probs, eps=eps, mask=mask
+        p_logits, q_probs, eps=eps, mask=mask, sqrt=sqrt
     )
+
+
+def kl_divergence(
+    p_logits: Tensor,
+    q_probs: Tensor,
+    eps: float = 1e-10,
+    mask: Optional[Tensor] = None,
+) -> float:
+    """
+    Computes the kl_divergence between two probability distributions.
+
+    Args:
+        p_logits (Tensor): The logits of the first probability distribution.
+        q_probs (Tensor): The probabilities of the second probability distribution.
+        eps (float, optional): A small value added to the probabilities for numerical stability. Defaults to 1e-10.
+        mask: (Tensor, optional): A mask for the loss calculation. Defaults to None.
+
+    Returns:
+        float: The Jensen-Shannon Divergence between the two probability distributions.
+    """
+    # Convert logits to log-probabilities
+    p_log_probs = F.log_softmax(p_logits, dim=-1)
+
+    # Compute element-wise KL divergence
+    kl_loss = F.kl_div(p_log_probs, q_probs, reduction="none")
+    kl_loss = kl_loss.sum(dim=-1)
+
+    # Mask tokens for cross-task-faithfulness
+    if mask is not None:
+        kl_loss = kl_loss * mask
+
+        # Average over sequence
+        if len(kl_loss.shape) == 2:
+            seq_loss_sum = kl_loss.sum(dim=-1)
+            seq_mask_sum = mask.sum(dim=-1)
+            kl_loss = seq_loss_sum / (
+                seq_mask_sum + (seq_mask_sum == 0) * eps
+            )  # avoid division by 0
+
+        # Average over batch
+        non_zero_sequences = (mask.sum(dim=-1) > 0).sum()
+        kl_batch_mean = kl_loss.sum(dim=-1) / (
+            non_zero_sequences + (non_zero_sequences == 0) * eps
+        )
+    else:
+        if len(kl_loss.shape) == 2:
+            kl_loss = kl_loss.mean(dim=-1)
+        kl_batch_mean = kl_loss.mean(dim=-1)
+
+    return kl_batch_mean.item()

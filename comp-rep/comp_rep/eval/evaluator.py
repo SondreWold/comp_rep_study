@@ -4,7 +4,7 @@ Modules to evaluate models.
 
 import logging
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -20,7 +20,7 @@ from comp_rep.data_prep.dataset import (
 )
 from comp_rep.eval.cross_task_evaluations import compute_str_match_mask
 from comp_rep.eval.decoding import GreedySearch
-from comp_rep.eval.metrics import jsd_faithfulness
+from comp_rep.eval.metrics import jsd_faithfulness, kl_divergence
 
 
 @torch.no_grad()
@@ -89,7 +89,7 @@ def evaluate_task_faithfulness(
     mask_func_equivalence: bool = False,
     circuit_name: str = "copy",
     eval_task_name: str = "copy",
-) -> float:
+) -> Tuple[float, float]:
     """
     Evaluates the faithfulness of a given model on a test dataset.
 
@@ -99,12 +99,13 @@ def evaluate_task_faithfulness(
         device (Union[str, torch.device], optional): The device to be used for evaluation. Defaults to "cuda:0".
 
     Returns:
-        float: The average faithfulness score of the model over the test set.
+        Tuple[float, float]: The average faithfulness score of the model over the test set wrt jsd and kl-divergence.
     """
     model = model.to(device)
     model.eval()
 
-    total_faithfulness_score: float = 0.0
+    total_jsd_faithfulness_score: float = 0.0
+    total_kl_div_faithfulness_score: float = 0.0
     n_batches: int = 0
 
     for batch in tqdm(test_loader):
@@ -149,20 +150,34 @@ def evaluate_task_faithfulness(
             source_ids, source_mask, target_ids[:, :-1], target_mask[:, :-1]
         )  # [batch size, max seq len, vocab]
 
-        faithfulness_score = jsd_faithfulness(
+        # jsd
+        jsd_faithfulness_score = jsd_faithfulness(
+            p_logits=model_logits,
+            q_probs=target_probabilities,
+            eps=1e-10,
+            mask=pad_mask,
+            sqrt=False,
+        )
+        total_jsd_faithfulness_score += jsd_faithfulness_score
+
+        # kl divergence
+        kl_div_faithfulness_score = kl_divergence(
             p_logits=model_logits,
             q_probs=target_probabilities,
             eps=1e-10,
             mask=pad_mask,
         )
-        total_faithfulness_score += faithfulness_score
+        total_kl_div_faithfulness_score += kl_div_faithfulness_score
         n_batches += 1
 
     if n_batches == 0:
         logging.warning("No batches have been processed!")
-        return float("nan")
+        return float("nan"), float("nan")
 
-    return total_faithfulness_score / n_batches
+    batch_jsd_faithfulness_score = total_jsd_faithfulness_score / n_batches
+    batch_kl_div_faithfulness_score = total_kl_div_faithfulness_score / n_batches
+
+    return batch_jsd_faithfulness_score, batch_kl_div_faithfulness_score
 
 
 def eval_task(
@@ -219,7 +234,7 @@ def eval_task(
             persistent_workers=True,
         )
 
-        faithfulness = evaluate_task_faithfulness(
+        jsd_faithfulness, kl_div_faithfulness = evaluate_task_faithfulness(
             model=model,
             test_loader=eval_loader,
             device=device,
@@ -227,7 +242,8 @@ def eval_task(
             circuit_name=circuit_name,
             eval_task_name=eval_task_name,
         )
-        eval_dict["faithfulness"] = faithfulness
+        eval_dict["jsd_faithfulness"] = jsd_faithfulness
+        eval_dict["kl_div_faithfulness"] = kl_div_faithfulness
     else:
         eval_dataset = SequenceDataset(eval_data_path, tokenizer=tokenizer)
         eval_loader = DataLoader(

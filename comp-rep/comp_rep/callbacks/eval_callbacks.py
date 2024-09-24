@@ -65,7 +65,7 @@ class TestFaithfulnessCallback(Callback):
 
     def on_validation_epoch_end(self, trainer, pl_module):
         """
-        Callback function to evaluate the model's accuracy.
+        Callback function to evaluate the model's faithfulness.
 
         Args:
             trainer (Trainer): The PyTorch Lightning trainer object.
@@ -77,17 +77,18 @@ class TestFaithfulnessCallback(Callback):
         epoch = trainer.current_epoch
 
         if epoch % self.frequency == 0:
-            avg_faithfulness = evaluate_task_faithfulness(
+            avg_jsd_faithfulness, avg_kl_div_faithfulness = evaluate_task_faithfulness(
                 model=pl_module.model,
                 test_loader=self.test_loader,
                 device=self.device,
             )
-            pl_module.log("val_faithfulness", avg_faithfulness)
+            pl_module.log("val_jsd_faithfulness", avg_jsd_faithfulness)
+            pl_module.log("val_kl_div_faithfulness", avg_kl_div_faithfulness)
 
             if hasattr(pl_module, "pruner"):
                 remaining_mask_elements = pl_module.pruner.get_remaining_mask()
                 pl_module.log(
-                    "faithfulness_vs_weights",
-                    (1 - avg_faithfulness)
+                    "jsd_faithfulness_vs_weights",
+                    (1 - avg_jsd_faithfulness)
                     + remaining_mask_elements["global_remaining_mask"],
                 )
