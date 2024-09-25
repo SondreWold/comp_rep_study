@@ -134,7 +134,7 @@ def main() -> None:
     """
 
     circuits = args.circuit_names
-    circuit_pairs = list(itertools.combinations(circuits, 2))
+    circuit_pairs = list(itertools.permutations(circuits, 2))
 
     result: Dict[str, Dict[str, Dict[str, float]]] = {}
     for circuit1, circuit2 in circuit_pairs:
