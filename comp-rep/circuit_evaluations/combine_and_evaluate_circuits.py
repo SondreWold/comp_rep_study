@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 from pathlib import Path
+from typing import Dict
 
 import itertools
 import torch
@@ -132,7 +133,7 @@ def main() -> None:
 
     result: Dict[str, Dict[str, Dict[str, float]]] = {}
     for circuit1, circuit2 in circuit_pairs:
-        circuit_name = f"{circuit1}_{circuit2}"
+        circuit_name = f"{circuit1}-{circuit2}"
         result.setdefault(circuit_name, {})
         logging.info(circuit_name)
         model_path_1 = (
@@ -149,7 +150,7 @@ def main() -> None:
         model_2 = load_model(
             model_path=model_path_2, is_masked=True, model=None, return_pl=False
         )
-        new_model = union_model(model_1, model_2)
+        new_model = ARGS_TO_OPERATION[args.operation](model_1, model_2)
 
 
         for task_name in args.eval_tasks:
