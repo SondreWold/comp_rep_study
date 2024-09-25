@@ -130,9 +130,11 @@ def main() -> None:
     circuit_pairs = list(itertools.combinations(circuits, 2))
 
 
-    result = {}
+    result: Dict[str, Dict[str, Dict[str, float]]] = {}
     for circuit1, circuit2 in circuit_pairs:
-        logging.info(f"Merging {circuit1} and {circuit2}")
+        circuit_name = f"{circuit1}_{circuit2}"
+        result.setdefault(circuit_name, {})
+        logging.info(circuit_name)
         model_path_1 = (
             args.model_dir / circuit1
         / f"{args.pruning_type}_continuous_{args.ablation_value}_pruned_model.ckpt"
@@ -164,7 +166,7 @@ def main() -> None:
                 / f"{task_name}_test.pt",
                 eval_acc=True,
             )
-            result[f"{circuit1}_{circuit2}"] = eval_dict
+            result[circuit_name][task_name] = eval_dict
             logging.info(eval_dict)
     
     result = dict(result)
