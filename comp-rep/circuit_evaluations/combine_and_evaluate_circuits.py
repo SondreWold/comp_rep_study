@@ -10,7 +10,6 @@ import torch
 from comp_rep.constants import MASK_TASKS
 from comp_rep.eval.evaluator import eval_task
 from comp_rep.pruning.subnetwork_set_operations import (
-    complement_model,
     difference_model,
     intersection_model,
     union_model,
@@ -34,7 +33,6 @@ ARGS_TO_OPERATION = {
     "union": union_model,
     "difference": difference_model,
     "intersection": intersection_model,
-    "complement": complement_model,
 }
 
 
@@ -59,7 +57,7 @@ def parse_args() -> argparse.Namespace:
         "--operation",
         type=str,
         default="union",
-        choices=["union", "complement", "intersection", "difference"],
+        choices=["union", "intersection", "difference"],
         help="Which set operation to apply",
     )
 
