@@ -41,7 +41,7 @@ def binary_function_(
     assert subnetwork_A.ticket is True
     assert subnetwork_B.ticket is True
     intermediate_result = operator(subnetwork_A.b_matrix, subnetwork_B.b_matrix)
-    setattr(subnetwork_A, "b_matrix", intermediate_result)
+    setattr(subnetwork_A, "b_matrix", intermediate_result.float())
 
 
 def intersection_(subnetwork_A: MaskedLayer, subnetwork_B: MaskedLayer):
