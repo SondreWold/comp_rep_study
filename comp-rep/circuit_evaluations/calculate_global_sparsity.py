@@ -77,7 +77,6 @@ def bar_plot(labels: list, values: list, path: Path) -> None:
     ax.set_ylim(0, 100)
 
     # Adding labels to the axes
-    ax.set_xlabel("Subtask", fontsize=12)
     ax.set_ylabel("Remaining activations (%)", fontsize=12)
 
     # Adding gridlines for better readability
@@ -116,7 +115,7 @@ def main() -> None:
     )
 
     sparsity = {}
-    for task in args.eval_tasks:
+    for task in args.circuit_names:
         model_path = (
             args.save_path
             / f"{task}"

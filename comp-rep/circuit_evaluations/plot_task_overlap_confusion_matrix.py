@@ -105,7 +105,7 @@ if __name__ == "__main__":
     sns.heatmap(
         matrix,
         annot=True,
-        cmap="YlGnBu",
+        cmap="Blues",
         xticklabels=objects,
         yticklabels=objects,
         fmt=".2f",
