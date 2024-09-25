@@ -1,25 +1,21 @@
 import argparse
-import itertools
 import json
 import logging
 from pathlib import Path
 
+import itertools
 import torch
 
 from comp_rep.constants import MASK_TASKS
+from comp_rep.utils import ValidateTaskOptions, load_model, setup_logging
 from comp_rep.eval.evaluator import eval_task
-from comp_rep.pruning.subnetwork_set_operations import (
-    difference_model,
-    intersection_model,
-    union_model,
-)
+from comp_rep.pruning.subnetwork_set_operations import union_model, difference_model, intersection_model
 from comp_rep.utils import (
     ValidateTaskOptions,
     load_model,
     load_tokenizer,
     setup_logging,
 )
-
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 CURR_FILE_PATH = Path(__file__).resolve()
@@ -29,10 +25,10 @@ DATA_DIR = CURR_FILE_PATH.parents[2] / "data/function_tasks"
 
 
 ARGS_TO_OPERATION = {
-    "union": union_model,
-    "difference": difference_model,
-    "intersection": intersection_model,
-}
+        "union": union_model,
+        "difference": difference_model,
+        "intersection": intersection_model,
+        }
 
 
 def parse_args() -> argparse.Namespace:
@@ -79,9 +75,7 @@ def parse_args() -> argparse.Namespace:
 
     # Mask Configs
     parser.add_argument("--model_dir", type=Path, help="Path to the saved models.")
-    parser.add_argument(
-        "--cache_dir", type=Path, help="Path to the cached probabilities"
-    )
+    parser.add_argument("--cache_dir", type=Path, help="Path to the cached probabilities")
     parser.add_argument("--result_dir", type=Path, help="Where to save the results")
     parser.add_argument(
         "--pruning_type",
@@ -107,10 +101,10 @@ def main() -> None:
     args = parse_args()
 
     setup_logging(args.verbose)
-    logging.info(f"Test circuit compositions")
-    tokenizer_path = (
-        args.model_dir / args.circuit_names[0]
-    )  # All the circuits for the same base model have the same tokenizer
+    logging.info(
+        f"Test circuit compositions"
+    )
+    tokenizer_path = args.model_dir / args.circuit_names[0]  # All the circuits for the same base model have the same tokenizer
     tokenizer = load_tokenizer(tokenizer_path)
 
     """
@@ -135,26 +129,26 @@ def main() -> None:
     circuits = args.circuit_names
     circuit_pairs = list(itertools.combinations(circuits, 2))
 
+
     result = {}
     for circuit1, circuit2 in circuit_pairs:
         logging.info(f"Merging {circuit1} and {circuit2}")
         model_path_1 = (
-            args.model_dir
-            / circuit1
-            / f"{args.pruning_type}_continuous_{args.ablation_value}_pruned_model.ckpt"
+            args.model_dir / circuit1
+        / f"{args.pruning_type}_continuous_{args.ablation_value}_pruned_model.ckpt"
         )
         model_1 = load_model(
             model_path=model_path_1, is_masked=True, model=None, return_pl=False
         )
         model_path_2 = (
-            args.model_dir
-            / circuit2
-            / f"{args.pruning_type}_continuous_{args.ablation_value}_pruned_model.ckpt"
+            args.model_dir / circuit2
+        / f"{args.pruning_type}_continuous_{args.ablation_value}_pruned_model.ckpt"
         )
         model_2 = load_model(
             model_path=model_path_2, is_masked=True, model=None, return_pl=False
         )
         new_model = union_model(model_1, model_2)
+
 
         for task_name in args.eval_tasks:
             data_path = DATA_DIR / task_name / "test.csv"
@@ -162,7 +156,7 @@ def main() -> None:
                 task_name=task_name,
                 model=new_model,
                 tokenizer=tokenizer,
-                device="cpu",
+                device=DEVICE,
                 output_dir=None,
                 eval_data_path=data_path,
                 cached_probabilities_path=args.cache_dir
@@ -172,7 +166,7 @@ def main() -> None:
             )
             result[f"{circuit1}_{circuit2}"] = eval_dict
             logging.info(eval_dict)
-
+    
     result = dict(result)
     json_dict = json.dumps(result)
     output_path = (
@@ -181,7 +175,6 @@ def main() -> None:
     )
     with open(output_path, "w") as f:
         f.write(json_dict)
-
 
 if __name__ == "__main__":
     main()
