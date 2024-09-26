@@ -127,6 +127,7 @@ def main() -> None:
             model_path=model_path, is_masked=True, model=None, return_pl=False
         )
         model_list[circuit] = model
+    combination_name = "-".join(list(model_list.keys()))
 
     new_model = None
     for circuit, model in model_list.items():
@@ -162,7 +163,7 @@ def main() -> None:
     json_dict = json.dumps(result)
     output_path = (
         args.result_dir
-        / f"{args.pruning_type}_{args.ablation_value}_set_{args.operation}_results.json"
+        / f"{combination_name}_{args.ablation_value}_set_{args.operation}_results.json"
     )
     with open(output_path, "w") as f:
         f.write(json_dict)
