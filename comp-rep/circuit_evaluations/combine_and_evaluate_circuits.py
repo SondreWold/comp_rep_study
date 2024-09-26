@@ -1,5 +1,4 @@
 import argparse
-import itertools
 import json
 import logging
 from pathlib import Path
@@ -108,62 +107,45 @@ def main() -> None:
     args = parse_args()
 
     setup_logging(args.verbose)
-    logging.info(f"Test circuit compositions")
+    logging.info("Test circuit compositions")
     tokenizer_path = (
         args.model_dir / args.circuit_names[0]
     )  # All the circuits for the same base model have the same tokenizer
     tokenizer = load_tokenizer(tokenizer_path)
+    assert (
+        len(args.circuit_names) >= 2
+    ), "Need more than one circuit in order to do set operations!"
 
-    """
     model_list = {}
     for circuit in args.circuit_names:
         model_path = (
-            args.model_dir / circuit
-        / f"{args.pruning_type}_continuous_{args.ablation_value}_pruned_model.ckpt"
+            args.model_dir
+            / circuit
+            / f"{args.pruning_type}_continuous_{args.ablation_value}_pruned_model.ckpt"
         )
         model = load_model(
             model_path=model_path, is_masked=True, model=None, return_pl=False
         )
         model_list[circuit] = model
+
     new_model = None
     for circuit, model in model_list.items():
         if not new_model:
             new_model = model
         logging.info(f"Applying {args.operation} to {circuit}")
         new_model = ARGS_TO_OPERATION[args.operation](new_model, model)
-    """
-
-    circuits = args.circuit_names
-    circuit_pairs = list(itertools.permutations(circuits, 2))
+    new_model_name = "-".join(args.circuit_names)
+    model_list[new_model_name] = new_model
 
     result: Dict[str, Dict[str, Dict[str, float]]] = {}
-    for circuit1, circuit2 in circuit_pairs:
-        circuit_name = f"{circuit1}-{circuit2}"
-        result.setdefault(circuit_name, {})
-        logging.info(circuit_name)
-        model_path_1 = (
-            args.model_dir
-            / circuit1
-            / f"{args.pruning_type}_continuous_{args.ablation_value}_pruned_model.ckpt"
-        )
-        model_1 = load_model(
-            model_path=model_path_1, is_masked=True, model=None, return_pl=False
-        )
-        model_path_2 = (
-            args.model_dir
-            / circuit2
-            / f"{args.pruning_type}_continuous_{args.ablation_value}_pruned_model.ckpt"
-        )
-        model_2 = load_model(
-            model_path=model_path_2, is_masked=True, model=None, return_pl=False
-        )
-        new_model = ARGS_TO_OPERATION[args.operation](model_1, model_2)
-
+    for circuit, model in model_list.items():
+        logging.info(f"Loaded circuit {circuit}...")
+        result.setdefault(circuit, {})
         for task_name in args.eval_tasks:
             data_path = DATA_DIR / task_name / "test.csv"
             eval_dict = eval_task(
                 task_name=task_name,
-                model=new_model,
+                model=model,
                 tokenizer=tokenizer,
                 device=DEVICE,
                 output_dir=None,
@@ -173,7 +155,7 @@ def main() -> None:
                 / f"{task_name}_test.pt",
                 eval_acc=True,
             )
-            result[circuit_name][task_name] = eval_dict
+            result[circuit][task_name] = eval_dict
             logging.info(eval_dict)
 
     result = dict(result)
