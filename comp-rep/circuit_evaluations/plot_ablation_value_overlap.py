@@ -3,7 +3,6 @@ import logging
 import os
 from pathlib import Path
 
-import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -85,7 +84,7 @@ def parse_args() -> argparse.Namespace:
 
 def bar_plot(labels: list, values: list, path: Path) -> None:
     # Create a bar chart
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(7, 5))
 
     # Ensure values is a list of lists, each inner list containing two values
     assert all(
@@ -93,8 +92,11 @@ def bar_plot(labels: list, values: list, path: Path) -> None:
     ), "Each item in values should have two elements"
 
     # Sort the labels and values together
-    sorted_pairs = sorted(zip(values, labels), key=lambda x: sum(x[0]), reverse=True)
+    sorted_pairs = sorted(zip(values, labels), key=lambda x: sum(x[0]), reverse=False)
     values, labels = zip(*sorted_pairs)
+    labels = [label.replace("swap_first_last", "swap") for label in labels]
+    labels = [label.replace("remove_second", "rm_second") for label in labels]
+    labels = [label.replace("remove_first", "rm_first") for label in labels]
 
     x = np.arange(len(labels))  # the label locations
     width = 0.35  # the width of the bars
@@ -117,7 +119,6 @@ def bar_plot(labels: list, values: list, path: Path) -> None:
     ax.set_ylim(0, 100)
 
     # Adding labels and title
-    ax.set_xlabel("Subtask", fontsize=fontsize)
     ax.set_ylabel("Overlap (%)", fontsize=fontsize)
     # ax.set_title("Comparison of IoU and IoM per Subtask", fontsize=14)
 
@@ -127,27 +128,26 @@ def bar_plot(labels: list, values: list, path: Path) -> None:
     # Customize x-axis
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=fontsize)
-    matplotlib.rcParams.update({"font.size": fontsize})
 
     # Add value labels on the bars
     def autolabel(rects):
         for rect in rects:
             height = rect.get_height()
             ax.annotate(
-                f"{height:.0f}%",
+                f"{height:.0f}",
                 xy=(rect.get_x() + rect.get_width() / 2, height),
                 xytext=(0, 3),  # 3 points vertical offset
                 textcoords="offset points",
                 ha="center",
                 va="bottom",
-                fontsize=10,
+                fontsize=12,
             )
 
     autolabel(rects1)
     autolabel(rects2)
 
     # Add legend
-    ax.legend()
+    ax.legend(fontsize=fontsize)
 
     # Adjust layout and save
     plt.tight_layout()

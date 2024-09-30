@@ -64,11 +64,15 @@ def parse_args() -> argparse.Namespace:
 
 def bar_plot(labels: list, values: list, path: Path) -> None:
     # Create a bar chart
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(7, 5))
+
     sorted_pairs = sorted(zip(values, labels))
 
     # Unzip the sorted pairs back into separate lists
     values, labels = zip(*sorted_pairs)
+    labels = [label.replace("swap_first_last", "swap") for label in labels]
+    labels = [label.replace("remove_second", "rm_second") for label in labels]
+    labels = [label.replace("remove_first", "rm_first") for label in labels]
 
     # Plotting the bars with a color gradient
     bars = ax.bar(labels, values, color=plt.cm.Paired(range(len(labels))))
@@ -77,28 +81,28 @@ def bar_plot(labels: list, values: list, path: Path) -> None:
     ax.set_ylim(0, 100)
 
     # Adding labels to the axes
-    ax.set_ylabel("Remaining activations (%)", fontsize=12)
+    ax.set_ylabel("Remaining act. (%)", fontsize=12)
 
     # Adding gridlines for better readability
     ax.grid(True, axis="y", linestyle="--", alpha=0.6)
-    plt.xticks(rotation=45, ha="right")
+    plt.xticks(rotation=45, ha="right", fontsize=18)
 
     for bar in bars:
         height = bar.get_height()
         ax.annotate(
-            f"{height: .0f}%",
+            f"{height: .0f}",
             xy=(bar.get_x() + bar.get_width() / 2, height),
             xytext=(0, 3),  # Offset label slightly above the bar
             textcoords="offset points",
             ha="center",
             va="bottom",
-            fontsize=10,
+            fontsize=12,
         )
 
     # Show the plot
     plt.tight_layout()
     plt.savefig(path, format="pdf")
-    plt.show()
+    # plt.show()
 
 
 def main() -> None:
