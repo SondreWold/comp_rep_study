@@ -191,15 +191,6 @@ def run_circuit_performance_evaluation(
                 result_dir / mask_name / f"circuit_{mask_name}_function_{task_name}"
             )
 
-            # set ablation values to match task values
-            if ablation_value == "mean":
-                if mean_mode == "global":
-                    task_list = MASK_TASKS
-                if mean_mode == "local":
-                    task_list = [mask_name, task_name]
-                ablation_data = load_and_average_ablation_data(task_list)
-                pl_pruner.pruner.set_ablation_value(ablation_data=ablation_data)
-
             model = pl_pruner.model
 
             eval_dict = eval_task(
