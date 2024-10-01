@@ -71,18 +71,22 @@ if __name__ == "__main__":
         data = json.load(f)
 
     # Define the list of objects
+
     objects = [
-        "remove_second",
-        "remove_first",
-        "copy",
-        "append",
         "echo",
-        "prepend",
-        "shift",
-        "swap_first_last",
-        "reverse",
+        "copy",
         "repeat",
+        "reverse",
+        "swap_first_last",
+        "shift",
+        "append",
+        "prepend",
+        "remove_first",
+        "remove_second",
     ]
+    object_labels = [x.replace("swap_first_last", "swap") for x in objects]
+    object_labels = [x.replace("remove_second", "rm_second") for x in object_labels]
+    object_labels = [x.replace("remove_first", "rm_first") for x in object_labels]
 
     # Create an empty 10x10 matrix
     matrix = np.zeros((10, 10))
@@ -100,17 +104,20 @@ if __name__ == "__main__":
     np.fill_diagonal(matrix, 1)
 
     # Create the heatmap
-    plt.figure(figsize=(12, 10))
-    sns.set(font_scale=1.5)
-    sns.heatmap(
+    plt.figure(figsize=(11, 10))
+    sns.set(font_scale=1.65)
+    hmap = sns.heatmap(
         matrix,
         annot=True,
-        cmap="YlGnBu",
-        xticklabels=objects,
-        yticklabels=objects,
+        cmap="Blues",
+        xticklabels=object_labels,
+        yticklabels=object_labels,
         fmt=".2f",
     )
+    hmap.set_yticklabels(hmap.get_yticklabels(), fontsize=20)
+    hmap.set_xticklabels(hmap.get_xticklabels(), rotation=45, fontsize=20)
+
     plt.tight_layout()
     output = args.output_path / f"task_overlap_{args.metric}_{args.ablation_value}.pdf"
-    plt.savefig(output, format="pdf")
-    # plt.show()
+    # plt.savefig(output, format="pdf")
+    plt.show()

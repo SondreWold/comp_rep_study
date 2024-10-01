@@ -76,7 +76,7 @@ def main() -> None:
     )
 
     sparsity = {}
-    for task in args.eval_tasks:
+    for task in args.circuit_names:
         logging.info(f"Getting local sparsity for subtask: {task}")
         model_path = (
             args.save_path

@@ -17,6 +17,7 @@ from comp_rep.utils import (
     ValidateTaskOptions,
     ValidateWandbPath,
     free_model,
+    load_json,
     load_model,
     load_tokenizer,
     setup_logging,
@@ -76,6 +77,12 @@ def parse_args() -> argparse.Namespace:
     # Mask Configs
     parser.add_argument("--model_path", type=Path, help="Path to the saved models.")
     parser.add_argument(
+        "--mean_mode",
+        choices=["local", "global"],
+        default="local",
+        help="Activate global mean mode",
+    )
+    parser.add_argument(
         "--circuit_names",
         nargs="+",
         default=["append"],
@@ -102,6 +109,32 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def load_and_average_ablation_data(task_list: list):
+    ablation_values = []
+    for task in task_list:
+        print(f"Loading {task}'s ablation values")
+        ablation_value_path = (
+            MEAN_ABLATION_VALUES_PATH / f"{task}_mean_ablation_values.json"
+        )
+
+        ablation_data = load_json(ablation_value_path)
+        ablation_values.append(ablation_data)
+
+    mean_dict: Dict[str, list] = {
+        key: [] for key in ablation_values[0].keys()
+    }  # equal keys
+    for task in ablation_values:
+        for key, item in task.items():
+            mean_dict[key].append(torch.tensor(item))
+
+    for key, item in mean_dict.items():
+        item = torch.stack(item, dim=0)
+        item = torch.mean(item, dim=0).tolist()
+        mean_dict[key] = item
+
+    return mean_dict
+
+
 def run_circuit_performance_evaluation(
     model_dir: Path,
     cache_dir: Path,
@@ -114,6 +147,7 @@ def run_circuit_performance_evaluation(
     eval_acc: bool = True,
     eval_faithfulness: bool = False,
     mask_func_equivalence: bool = False,
+    mean_mode: str = "local",
 ) -> dict:
     """
     Evaluates masked models on the individual functions.
@@ -206,6 +240,7 @@ def main() -> None:
         eval_acc=True,
         eval_faithfulness=True,
         mask_func_equivalence=args.mask_func_equivalence,
+        mean_mode=args.mean_mode,
     )
     logging.info(result)
 

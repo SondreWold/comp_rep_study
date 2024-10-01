@@ -111,7 +111,7 @@ def main() -> None:
 
     model_list = []
     for seed in seeds:
-        m_path = args.seed_folder / seed / model_name
+        m_path = args.seed_folder / seed / args.circuit_name / model_name
         m = load_model(model_path=m_path, is_masked=True)
         model_list.append(m)
 
@@ -137,7 +137,9 @@ def main() -> None:
     # save result
     result = dict(result)
     json_dict = json.dumps(result)
-    output_path = args.result_dir / f"{args.circuit_name}_seed_overlap.json"
+    output_path = (
+        args.result_dir / f"{args.circuit_name}_{args.ablation_value}_seed_overlap.json"
+    )
     with open(output_path, "w") as f:
         f.write(json_dict)
 
