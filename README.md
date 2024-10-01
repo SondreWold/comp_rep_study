@@ -24,7 +24,7 @@ A fundamental question in interpretability research is to what extent neural net
 - [Code](comp-rep)
 - [Data](data)
 
-# Reproducability
+# Reproducibility
 The following sections outlines how our results can be reproduced. We provide general scripts that illustrate the pipeline using mean ablation.
 ## Step 1: Generating the data
 
