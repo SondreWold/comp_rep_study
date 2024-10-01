@@ -1,4 +1,4 @@
-<h1 align="center">Circuit Compositions: Exploring Modular: Structures in Transformer-Based Language Models</h1>
+<h1 align="center">Circuit Compositions: Exploring Modular Structures in Transformer-Based Language Models</h1>
 
 <p align="center">
     <a href="LICENSE"> <img alt="License" src="https://img.shields.io/badge/License-CC%20BY--SA%204.0-lightgrey.svg"> </a>
@@ -25,7 +25,19 @@ A fundamental question in interpretability research is to what extent neural net
 - [Data](data)
 
 # Reproducibility
-The following sections outlines how our results can be reproduced. We provide general scripts that illustrate the pipeline using mean ablation.
+The following sections outline how our results can be reproduced. We provide general scripts that illustrate the pipeline using mean ablation.
+
+## Step 0: Environment setup
+All code was developed and tested on Ubuntu 22.04 with Python 3.12.0. 
+
+To run the current code, we recommend to use Poetry:
+```
+poetry install                          # Install dependencies
+poetry shell                            # Activate virtual environment
+# Work for a while
+deactivate
+```
+
 ## Step 1: Generating the data
 
 The core PCFG data can be downloaded and transformed to a common format by running the script:
@@ -64,7 +76,7 @@ The next step is to train masks. We provide an example script for training mean 
 
 ```./comp-rep/example_runs/train_mask_model.sh```
 
-Running this will train 10 masks, one for each circuit. In our paper we use different hyperparameters for different subtasks. This needs to be adjusted for in the abovementioned script. On an AMD Instinct MI250X, this takes approximately two hours per mask.
+Running this will train 10 masks, one for each circuit. In our paper we use different hyperparameters for different subtasks. This needs to be adjusted for in the abovementioned script. Hyperparameters can be found in the paper in appendix B. On an AMD Instinct MI250X, mask training takes approximately two hours per mask.
 
 ## Step 6: Evaluation
 In ```./comp-rep/circuit_evaluations``` we provide a range of evaluation scripts that reproduce the experiments from the paper.
