@@ -1,7 +1,8 @@
 save_path="../model_checkpoints"
 wandb_path="../"
+export PYTHONPATH="../"
 
-python ../comp_rep/train.py \
+python ../train.py \
 	--lr 7e-5 \
 	--hidden_size 512 \
 	--layers 6 \
