@@ -2,7 +2,23 @@ from typing import Any, Dict, List
 
 import numpy as np
 import torch
+from datasets import DatasetDict, load_from_disk
 from transformers import AutoTokenizer, PreTrainedTokenizerFast
+
+
+def load_datasets(dataset_path, max_train_samples, max_eval_samples):
+    dataset_ = load_from_disk(dataset_path)
+    dataset = DatasetDict(
+        {
+            "train": dataset_,
+            "validation": dataset_,
+        }
+    )
+    if max_train_samples is not None and max_train_samples < len(dataset["train"]):
+        dataset["train"] = dataset["train"].select(range(max_train_samples))
+    if max_eval_samples is not None and max_eval_samples < len(dataset["validation"]):
+        dataset["validation"] = dataset["validation"].select(range(max_eval_samples))
+    return dataset
 
 
 def unstringify(string_list: List[Any]) -> List[int]:

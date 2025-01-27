@@ -109,10 +109,10 @@ class CausalSelfAttention(nn.Module):
         )  # batch size, sequence length, embedding dimensionality (n_embd)
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
-        # q, k, v  = self.c_attn(x).split(self.n_embd, dim=2)
         q = self.q_proj(x)
         k = self.k_proj(x)
         v = self.v_proj(x)
+
         DC = k.shape[-1]  # dimension of key and queries after down projection
         k = k.view(B, T, self.n_head, DC // self.n_head).transpose(
             1, 2

@@ -2,9 +2,8 @@ import argparse
 import logging
 
 import torch
-from datasets import DatasetDict, load_from_disk
 from nanoGPT import GPT
-from tracr_data_utils import ErazrTokenizer, unstringify
+from tracr_data_utils import ErazrTokenizer, load_datasets, unstringify
 from tracr_model_utils import get_config_weights_and_vocab
 
 
@@ -15,21 +14,6 @@ def parse_args():
     parser.add_argument("--seq_len", type=int, default=4)
 
     return parser.parse_args()
-
-
-def load_datasets(dataset_path, max_train_samples, max_eval_samples):
-    dataset_ = load_from_disk(dataset_path)
-    dataset = DatasetDict(
-        {
-            "train": dataset_,
-            "validation": dataset_,
-        }
-    )
-    if max_train_samples is not None and max_train_samples < len(dataset["train"]):
-        dataset["train"] = dataset["train"].select(range(max_train_samples))
-    if max_eval_samples is not None and max_eval_samples < len(dataset["validation"]):
-        dataset["validation"] = dataset["validation"].select(range(max_eval_samples))
-    return dataset
 
 
 def main():
