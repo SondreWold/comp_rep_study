@@ -15,8 +15,10 @@ from comp_rep.pruning.activation_pruning.masked_activation_base import (
     MaskedActivationLayer,
 )
 from comp_rep.pruning.pruner import Pruner
+from comp_rep.models.nanoGPT import CausalSelfAttention, MLP
 
-PRUNED_NODES = [FeedForward, MultiHeadAttention]
+
+PRUNED_NODES = [FeedForward, MultiHeadAttention, CausalSelfAttention, MLP]
 CURR_FILE_PATH = Path(__file__).resolve()
 MEAN_ABLATION_VALUES_PATH = CURR_FILE_PATH.parents[1] / "mean_ablation_values"
 

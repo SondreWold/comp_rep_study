@@ -56,8 +56,9 @@ class CausalSelfAttention(nn.Module):
 
     def __init__(self, config):
         super().__init__()
-        assert config.n_embd % config.n_head == 0
+        #assert config.n_embd % config.n_head == 0
         self.causal = config.causal
+        self.hidden_size = config.n_embd
         # key, query, value projections for all heads, but in a batch
         # self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd, bias=config.bias)
 
@@ -156,6 +157,7 @@ class MLP(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.activation_function = config.act_func
+        self.hidden_size = config.n_embd
         self.c_fc = nn.Linear(config.n_embd, 4 * config.n_embd, bias=config.bias)
         self.c_proj = nn.Linear(4 * config.n_embd, config.n_embd, bias=config.bias)
         self.dropout = nn.Dropout(config.dropout)

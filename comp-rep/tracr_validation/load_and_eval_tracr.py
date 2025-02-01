@@ -2,7 +2,7 @@ import argparse
 import logging
 
 import torch
-from nanoGPT import GPT
+from comp_rep.models.nanoGPT import GPT
 from tracr_data_utils import ErazrTokenizer, load_datasets, unstringify
 from tracr_model_utils import get_config_weights_and_vocab
 
