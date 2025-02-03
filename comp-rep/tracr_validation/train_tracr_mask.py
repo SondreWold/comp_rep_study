@@ -1,48 +1,33 @@
-from doctest import master
 """
 Model pruning script.
 """
 
 import argparse
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
-import wandb
-from tqdm import tqdm
 
-import lightning as L
 import torch
-from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
-from lightning.pytorch.loggers import WandbLogger
 from torch.utils.data import DataLoader
+from tqdm import tqdm
+from tracr_data_utils import (
+    DataCollatorTracr,
+    ErazrTokenizer,
+    load_datasets,
+)
+from tracr_model_utils import get_config_weights_and_vocab
 
 import wandb
-from comp_rep.callbacks.eval_callbacks import (
-    TestFaithfulnessCallback,
-    TestGenerationCallback,
-)
 from comp_rep.constants import POSSIBLE_TASKS
-from comp_rep.data_prep.dataset import (
-    CollateFunctorWithProbabilities,
-    SequenceDatasetWithProbabilities,
-)
-from comp_rep.eval.decoding import GreedySearch
-from comp_rep.eval.evaluator import evaluate_generation
-from comp_rep.models.lightning_models import LitTransformer
-from comp_rep.pruning.activation_pruning.activation_pruner import ActivationPruner
-from tracr_model_utils import get_config_weights_and_vocab
-from tracr_data_utils import ErazrTokenizer, DataCollatorTracr, unstringify, load_datasets
-from comp_rep.models.lightning_tracr_models import LitTracrPrunedModel
-from comp_rep.models.nanoGPT import GPT
-from comp_rep.utils import (
-    ValidateSavePath,
-    ValidateWandbPath,
-    set_seed,
-    setup_logging,
-)
+
 from comp_rep.loss import get_regularized_loss_from_nano
+from comp_rep.models.nanoGPT import GPT
+from comp_rep.pruning.activation_pruning.activation_pruner import ActivationPruner
+from comp_rep.pruning.activation_pruning.masked_activation_base import (
+    ContinuousMaskedActivationLayer,
+)
+from comp_rep.utils import ValidateSavePath, ValidateWandbPath, set_seed, setup_logging
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -172,7 +157,9 @@ def parse_args() -> argparse.Namespace:
 
     # Train parameter configs
     parser.add_argument("--epochs", type=int, default=20, help="Number of epochs.")
-    parser.add_argument("--seq_len", type=int, default=5, help="Maximum sequence length.")
+    parser.add_argument(
+        "--seq_len", type=int, default=5, help="Maximum sequence length."
+    )
     parser.add_argument(
         "--train_batch_size", type=int, default=64, help="Training batch size."
     )
@@ -241,6 +228,21 @@ def get_pruner_kwargs(args: argparse.Namespace) -> Dict:
     return pruner_kwargs
 
 
+def print_remaining_compontents(pruner: ActivationPruner):
+    """
+    Iterates over the model components. For evert ContinuousMaskedActivationLayer, checks
+    if the s_matrix of that layer contains any values that are not zero.
+    It the matrix contains any non-zero values, it stores that component in a dictionary with the layer name as key
+    """
+    remaining_mask_elements = {}
+    for name, module in pruner.model.transformer.named_modules():
+        if isinstance(module, ContinuousMaskedActivationLayer):
+            if torch.any(module.b_matrix > 0):
+                # remaining_mask_elements[name] = torch.sum(module.s_matrix != 0).item()
+                remaining_mask_elements[name] = module.b_matrix
+    return remaining_mask_elements
+
+
 def main() -> None:
     """
     Main script.
@@ -253,7 +255,9 @@ def main() -> None:
     # sweep config
     config = vars(args)
     config_string = "\n".join([f"--{k}: {v}" for k, v in config.items()])
-    logging.info(f"\nRunning pruning training loop for the Tracr models with the config: \n{config_string}")
+    logging.info(
+        f"\nRunning pruning training loop for the Tracr models with the config: \n{config_string}"
+    )
 
     current_datetime = datetime.now()
     formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H:%M:%S")
@@ -270,12 +274,16 @@ def main() -> None:
         get_config_weights_and_vocab(args.model_path)
     )
 
-    base_model = GPT.from_tracr(config, tok_embed, pos_embed, unembedding_mtx, blocks_embeds)
+    base_model = GPT.from_tracr(
+        config, tok_embed, pos_embed, unembedding_mtx, blocks_embeds
+    )
     base_model.eval()
     for param in base_model.parameters():
         param.requires_grad = False
 
-    mask_model = GPT.from_tracr(config, tok_embed, pos_embed, unembedding_mtx, blocks_embeds)
+    mask_model = GPT.from_tracr(
+        config, tok_embed, pos_embed, unembedding_mtx, blocks_embeds
+    )
     mask_model.train()
 
     raw_datasets = load_datasets(args.data_path, 10000, 100)
@@ -284,14 +292,17 @@ def main() -> None:
     tokenizer = ErazrTokenizer(vocab, bos, pad)
     collator = DataCollatorTracr(tokenizer=tokenizer, length=args.seq_len)
 
+    temp_increase = args.max_temp ** (1.0 / args.epochs)
+
     pruner = ActivationPruner(
         model=mask_model,
         pruning_method="continuous",
         subtask=args.subtask,
         ablation_value="zero",
         maskedlayer_kwargs={
-            "mask_initial_value": 1.0,
+            "mask_initial_value": args.mask_initial_value,
             "ticket": False,
+            "temperature_increase": temp_increase,
         },
     )
     print(pruner.model)
@@ -302,40 +313,66 @@ def main() -> None:
         shuffle=True,
         collate_fn=collator,
     )
+
+    val_dataloader = DataLoader(
+        val_dataset,
+        batch_size=1,
+        shuffle=False,
+        collate_fn=collator,
+    )
     optimizer = torch.optim.AdamW(mask_model.parameters(), lr=args.lr)
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer=optimizer,
-        T_max=args.epochs * len(train_dataloader), # total number of iterations
+        T_max=args.epochs * len(train_dataloader),  # total number of iterations
         eta_min=args.eta_min,
     )
 
     for epoch in tqdm(range(args.epochs)):
         pruner.deactivate_ticket()
-
         for batch in train_dataloader:
             optimizer.zero_grad()
             input_ids = batch["input_ids"]
 
             pruner.compute_and_update_masks()
-            logits, loss = mask_model(input_ids)
+            logits, loss = pruner.model(input_ids)
             base_logits, base_loss = base_model(input_ids)
-            ce_loss, norm_loss, regularized_loss = get_regularized_loss_from_nano(pruner, logits, base_logits, args.mask_lambda)
+            ce_loss, norm_loss, regularized_loss = get_regularized_loss_from_nano(
+                pruner, logits, base_logits, args.mask_lambda
+            )
 
-            wandb_logger.log({
-                "train_loss": regularized_loss,
-                "cross_entropy_loss": ce_loss,
-                "l1_norm_loss": norm_loss,
-            })
+            wandb_logger.log(
+                {
+                    "train_loss": regularized_loss,
+                    "cross_entropy_loss": ce_loss,
+                    "l1_norm_loss": norm_loss,
+                }
+            )
             regularized_loss.backward()
             optimizer.step()
             lr_scheduler.step()
 
         pruner.update_hyperparameters()
+
         pruner.activate_ticket()
         remaining_mask_elements = pruner.get_remaining_mask()
         wandb_logger.log(remaining_mask_elements)
+        if args.eval:
+            with torch.no_grad():
+                mask_model.eval()
+                correct = 0
+                for batch in val_dataloader:
+                    input_ids = batch["input_ids"]
+                    targets = batch["labels"]
+                    logits, _ = pruner.model(input_ids)
+                    preds = logits.argmax(-1)
+                    c = torch.all(preds[:, 1:] == targets[:, 1:]).float()
+                    correct += c
 
+            accuracy = correct / len(val_dataset)
+            wandb_logger.log({"val_accuracy": accuracy})
 
+    remaining_components = print_remaining_compontents(pruner)
+    print(remaining_components)
 
 
 if __name__ == "__main__":

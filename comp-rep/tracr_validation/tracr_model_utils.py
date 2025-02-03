@@ -1,7 +1,7 @@
 import pickle
 
 import torch
-from nanoGPT import GPTConfig
+from comp_rep.models.nanoGPT import GPTConfig
 
 
 def load_weights(
