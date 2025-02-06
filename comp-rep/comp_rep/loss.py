@@ -4,7 +4,7 @@ Loss computations.
 
 import lightning as L
 import torch.nn.functional as F
-
+import torch
 from comp_rep.data_prep.dataset import PAD_TOKEN
 
 
@@ -82,3 +82,31 @@ def get_regularized_logits_loss(
     # full loss
     loss = final_cross_entropy_loss + circuit_norm_loss
     return logits, final_cross_entropy_loss, circuit_norm_loss, loss
+
+
+def get_regularized_loss_from_nano(
+    pl_module: L.LightningModule,
+    logits: torch.Tensor,
+    base_logits: torch.Tensor,
+    mask_lambda: float,
+) -> tuple:
+    """
+    Calculates the regularized logits loss based on the input model, mask lambda, and batch.
+
+    Parameters:
+        model (L.LightningModule): The LightningModule model.
+        mask_lambda (float): The lambda value for masking.
+        batch (tuple): The input batch tuple.
+
+    Returns:
+        tuple: A tuple containing logits, cross entropy loss, mask loss, and total loss.
+    """
+    cross_entropy_loss = F.cross_entropy(logits, base_logits)
+
+    # second loss term
+    circuit_norms = pl_module.compute_l1_norm()
+    circuit_norm_loss = mask_lambda * circuit_norms
+
+    # full loss
+    loss = cross_entropy_loss + circuit_norm_loss
+    return cross_entropy_loss, circuit_norm_loss, loss
