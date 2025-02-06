@@ -40,6 +40,31 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 
+def extend_diagonal_matrix(matrix):
+    # Find the current diagonal indices
+    current_diag_indices = torch.where(matrix == 1)[0]
+
+    # Create two new columns of zeros
+    right_columns = torch.zeros((matrix.shape[0], 2), dtype=matrix.dtype)
+
+    # Extend the matrix with new columns at the end
+    extended_matrix = torch.cat([matrix, right_columns], dim=1)
+
+    # Place 1s to complete the diagonal if possible
+    if len(current_diag_indices) > 0:
+        last_diag_index = current_diag_indices[-1]
+
+        # First additional column
+        if last_diag_index + 1 < extended_matrix.shape[0]:
+            extended_matrix[last_diag_index + 1, -2] = 1
+
+        # Second additional column
+        if last_diag_index + 2 < extended_matrix.shape[0]:
+            extended_matrix[last_diag_index + 2, -1] = 1
+
+    return extended_matrix
+
+
 class LayerNorm(nn.Module):
     """LayerNorm but with an optional bias. PyTorch doesn't support simply bias=False"""
 
@@ -56,7 +81,7 @@ class CausalSelfAttention(nn.Module):
 
     def __init__(self, config):
         super().__init__()
-        #assert config.n_embd % config.n_head == 0
+        # assert config.n_embd % config.n_head == 0
         self.causal = config.causal
         self.hidden_size = config.n_embd
         # key, query, value projections for all heads, but in a batch
@@ -126,16 +151,19 @@ class CausalSelfAttention(nn.Module):
         )  # (B, nh, T, hs)
 
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
-        if self.flash:
-            # efficient attention using Flash Attention CUDA kernels
-            y = torch.nn.functional.scaled_dot_product_attention(
-                q,
-                k,
-                v,
-                attn_mask=None,
-                dropout_p=self.dropout if self.training else 0,
-                is_causal=self.causal,
-            )
+        if not self.causal:
+            att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+
+            # An attention mask that is 1 everywhere
+            att_mask = torch.ones((B, T, T))
+            att = att.masked_fill(att_mask.unsqueeze(1) == 0, -1e30)
+
+            # No masking for bidirectional attention
+            att = F.softmax(att, dim=-1)
+            att = self.attn_dropout(att)
+
+            # Compute output
+            y = att @ v  # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
         else:
             # manual implementation of attention
             att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
@@ -148,7 +176,8 @@ class CausalSelfAttention(nn.Module):
         )  # re-assemble all head outputs side by side
 
         # output projection
-        y = self.resid_dropout(self.c_proj(y))
+        y = self.c_proj(y)
+        y = self.resid_dropout(y)
         return y
 
 
@@ -315,6 +344,8 @@ class GPT(nn.Module):
         # forward the GPT model itself
         tok_emb = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
         pos_emb = self.transformer.wpe(pos)  # position embeddings of shape (t, n_embd)
+        # print shape of the embeddings
+
         x = self.transformer.drop(tok_emb + pos_emb)
         for block in self.transformer.h:
             x = block(x)
@@ -330,7 +361,7 @@ class GPT(nn.Module):
             )
         else:
             # inference-time mini-optimization: only forward the lm_head on the very last position
-            # logits = self.lm_head(x[:, [-1], :]) # note: using list [-1] to preserve the time dim
+            # logits = self.lm_head(x[:, -1, :]) # note: using list [-1] to preserve the time dim
             logits = self.lm_head(x)
             loss = None
 
@@ -351,15 +382,16 @@ class GPT(nn.Module):
 
     @classmethod
     def from_tracr(
-        cls, config, token_ebeddings, positional_embeddings, unembedding, block_weights
+        cls, config, token_embeddings, positional_embeddings, unembedding, block_weights
     ):
         """Loads a model from Tracr compiled weights into the nanoGPT architecture"""
         model = GPT(config)
-        # Unembedding is essentially the token embeddings without padding and eos tokens.
+        # Token embedding
+        # Unembedding is essentially the token embeddings without padding and bos tokens.
         model.lm_head.weight.data = (
             unembedding.T
         )  # Lm head is a linear, so we need to transpose.
-        model.transformer.wte.weight.data = token_ebeddings
+        model.transformer.wte.weight.data = token_embeddings
         model.transformer.wpe.weight.data = positional_embeddings
 
         for block, weights in zip(model.transformer.h, block_weights):
@@ -494,6 +526,37 @@ class GPT(nn.Module):
         Most likely you'll want to make sure to be in model.eval() mode of operation for this.
         """
         for _ in range(max_new_tokens):
+            # if the sequence context is growing too long we must crop it at block_size
+            idx_cond = (
+                idx
+                if idx.size(1) <= self.config.block_size
+                else idx[:, -self.config.block_size :]
+            )
+            # forward the model to get the logits for the index in the sequence
+            logits, _ = self(idx_cond)
+            # pluck the logits at the final step and scale by desired temperature
+            logits = logits[:, -1, :] / temperature
+            # optionally crop the logits to only the top k options
+            if top_k is not None:
+                v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+                logits[logits < v[:, [-1]]] = -float("Inf")
+            # apply softmax to convert logits to (normalized) probabilities
+            probs = F.softmax(logits, dim=-1)
+            # sample from the distribution
+            idx_next = torch.multinomial(probs, num_samples=1)
+            # append sampled index to the running sequence and continue
+            idx = torch.cat((idx, idx_next), dim=1)
+
+        return idx
+
+    @torch.no_grad()
+    def generate_v2(self, idx, max_new_tokens, temperature=1.0, top_k=None):
+        """
+        Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
+        the sequence max_new_tokens times, feeding the predictions back into the model each time.
+        Most likely you'll want to make sure to be in model.eval() mode of operation for this.
+        """
+        for token_pos in range(max_new_tokens):
             # if the sequence context is growing too long we must crop it at block_size
             idx_cond = (
                 idx
