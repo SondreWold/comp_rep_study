@@ -2,9 +2,10 @@ import argparse
 import logging
 
 import torch
-from comp_rep.models.nanoGPT import GPT
 from tracr_data_utils import ErazrTokenizer, load_datasets, unstringify
 from tracr_model_utils import get_config_weights_and_vocab
+
+from comp_rep.models.nanoGPT import GPT
 
 
 def parse_args():
@@ -12,6 +13,7 @@ def parse_args():
     parser.add_argument("--model_path", type=str, required=True)
     parser.add_argument("--data_path", type=str, required=True)
     parser.add_argument("--seq_len", type=int, default=4)
+    parser.add_argument("--subtask", type=str, default="none")
 
     return parser.parse_args()
 
@@ -23,8 +25,8 @@ def main():
     config, tok_embed, pos_embed, blocks_embeds, vocab, bos, pad, unembedding_mtx = (
         get_config_weights_and_vocab(args.model_path)
     )
-
     model = GPT.from_tracr(config, tok_embed, pos_embed, unembedding_mtx, blocks_embeds)
+    print(config)
 
     q_w_idx = 0
     k_w_idx = 1
@@ -107,7 +109,9 @@ def main():
 
         with torch.no_grad():
             logits, loss = model(input_ids)
+
             preds = logits.argmax(-1)
+            # Print the predictions and labels
             # calculate accuracy
             c = torch.all(preds[:, 1:] == labels[:, 1:]).float()  # Skip BOS
             correct += c

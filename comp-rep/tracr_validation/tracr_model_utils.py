@@ -1,6 +1,7 @@
 import pickle
 
 import torch
+
 from comp_rep.models.nanoGPT import GPTConfig
 
 
@@ -84,6 +85,7 @@ def get_config_weights_and_vocab(input_path, pytorch=True, device=None, act="rel
     print(f"Model size: {model_size}")
     print(f"Tok embed size: {tok_embed.shape}")
     print(f"Pos embed size: {pos_embed.shape}")
+    print(f"unembed size: {unembedding_mtx.shape}")
 
     print(model_size)
     config = GPTConfig(
